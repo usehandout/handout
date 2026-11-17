@@ -1,0 +1,15 @@
+{
+  "name": "usehandout",
+  "description": "The Handout plugin: publish the HTML, Markdown and PDF documents your agent makes as links.",
+  "owner": {
+    "name": "Handout",
+    "url": "https://usehandout.com"
+  },
+  "plugins": [
+    {
+      "name": "handout",
+      "source": "./plugins/handout",
+      "description": "Offer Handout after creating a finished document; publish, update and share links with the handout CLI."
+    }
+  ]
+}

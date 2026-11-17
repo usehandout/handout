@@ -1,0 +1,41 @@
+{
+  "name": "@usehandout/cli",
+  "version": "1.3.0",
+  "description": "The handout command: publish HTML, Markdown and PDF files as Handout links, and the agent skill that lets Claude Code, Codex and other agents do it.",
+  "keywords": [
+    "handout",
+    "publish",
+    "share",
+    "cli",
+    "agent",
+    "skill",
+    "claude-code",
+    "codex"
+  ],
+  "homepage": "https://usehandout.com",
+  "bugs": {
+    "url": "https://github.com/usehandout/handout/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usehandout/handout.git",
+    "directory": "cli"
+  },
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "handout": "handout.mjs"
+  },
+  "files": [
+    "handout.mjs",
+    "SKILL.md",
+    "NOTICE"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

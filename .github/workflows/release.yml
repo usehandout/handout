@@ -1,0 +1,64 @@
+name: Release
+
+# Stages cli/ on npm as @usehandout/cli when a skill-v<version> tag is pushed. npm trusted
+# publishing (OIDC): no npm token is stored anywhere, and npm generates the provenance attestation
+# that links each version to this repository, this workflow and the tagged commit. The trusted
+# publisher on npmjs.com names this file (release.yml) and the `npm` environment, and is
+# stage-only: the version goes live only when a maintainer approves it on npmjs.com with 2FA.
+#
+# The only workflow in this repository. The code was built and fully tested in Handout's
+# development repository before it was exported here; this job re-checks the package it is about
+# to publish and nothing else.
+
+on:
+  push:
+    tags: ["skill-v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write # npm trusted publishing and provenance
+    steps:
+      - name: Check out the tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      # Staged publishing needs npm 11.15.0 or later. Fail rather than install one from the registry
+      # inside the publishing job.
+      - name: Check the npm version
+        run: |
+          set -euo pipefail
+          version="$(npm --version)"
+          echo "npm ${version}"
+          node -e 'const [a,b]=process.argv[1].split(".").map(Number); process.exit(a>11||(a===11&&b>=15)?0:1)' "$version" \
+            || { echo "::error::npm ${version} is older than 11.15.0, which staged publishing needs"; exit 1; }
+
+      - name: Test the package
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: node --test "cli/test/*.test.mjs"
+
+      # Stage only: the version is installable once a maintainer approves it on npmjs.com
+      # (Staged packages tab) with 2FA. `publishConfig` in cli/package.json sets public access and
+      # provenance.
+      - name: Stage on npm (provenance)
+        working-directory: cli
+        run: npm stage publish
