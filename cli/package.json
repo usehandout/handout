@@ -1,6 +1,6 @@
 {
   "name": "@usehandout/cli",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "The handout command: publish HTML, Markdown and PDF files as Handout links, and the agent skill that lets Claude Code, Codex and other agents do it.",
   "keywords": [
     "handout",

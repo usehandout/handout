@@ -1,6 +1,6 @@
 {
   "name": "handout",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Publish the HTML, Markdown and PDF documents your agent makes as Handout links, with a chosen audience and a version history. Needs the handout CLI: npm install -g @usehandout/cli",
   "author": {
     "name": "Handout",

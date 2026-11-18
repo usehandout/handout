@@ -20005,6 +20005,7 @@ var PreferencesRecord = external_exports.object({
     cliConnectedAt: external_exports.string().optional(),
     ageConfirmedAt: external_exports.string().optional(),
     plusConfirmationSentFor: external_exports.string().optional(),
+    signupCountedAt: external_exports.string().optional(),
     deletionRequestedAt: external_exports.string().optional(),
     suspendedAt: external_exports.string().nullable().default(null),
     suspendedReason: external_exports.string().nullable().default(null),
@@ -20180,6 +20181,12 @@ function limitsFor(plan) {
 var HANDLE_MIN_LENGTH = 3;
 var HANDLE_MAX_LENGTH = 32;
 var HANDLE_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+var HANDLE_SHAPE = `[a-z0-9-]{${HANDLE_MIN_LENGTH},${HANDLE_MAX_LENGTH}}`;
+var PUBLIC_PATH_SHAPES = Object.freeze({
+    collection: `^/${HANDLE_SHAPE}/c/[^/]+$`,
+    document: `^/${HANDLE_SHAPE}/[^/]+$`,
+    workspace: `^/${HANDLE_SHAPE}$`
+});
 var RESERVED_HANDLES = new Set([
     "app",
     "api",
@@ -20436,7 +20443,11 @@ var PatchWorkspaceRequest = external_exports.object({
     suggestedLabels: SuggestedLabels.optional(),
     expectedUpdatedAt: IsoInstant.optional()
 });
-var LabelUsage = external_exports.object({ label: external_exports.string(), count: external_exports.number().int().nonnegative() });
+var LabelUsage = external_exports.object({
+    label: external_exports.string(),
+    count: external_exports.number().int().nonnegative(),
+    matchesCollection: external_exports.object({ slug: external_exports.string(), name: external_exports.string() }).optional()
+});
 var WorkspaceLabelsResponse = external_exports.object({
     suggested: external_exports.array(LabelUsage),
     other: external_exports.array(LabelUsage),
@@ -20541,7 +20552,8 @@ var HtmlLintCode = external_exports.enum([
     "fixed-position",
     "data-uri-image",
     "blocked-external-images",
-    "interactive-unsanitized"
+    "interactive-unsanitized",
+    "pdf_no_text"
 ]);
 var HtmlLintWarning = external_exports.object({
     code: HtmlLintCode,
@@ -21214,7 +21226,8 @@ var ReaderSearchItem = external_exports.object({
 }).extend(ReaderItemMeta.shape);
 var ReaderSearchResponse = external_exports.object({
     query: external_exports.string(),
-    items: external_exports.array(ReaderSearchItem)
+    items: external_exports.array(ReaderSearchItem),
+    nextCursor: external_exports.string().optional()
 });
 var BrowseResponse = external_exports.object({
     documents: external_exports.array(CatalogDocumentItem),
@@ -22054,8 +22067,8 @@ var cachedVersion;
 function bundledVersion() {
     if (cachedVersion !== void 0)
         return cachedVersion;
-    if ("1.4.0".length > 0) {
-        cachedVersion = "1.4.0";
+    if ("1.5.0".length > 0) {
+        cachedVersion = "1.5.0";
         return cachedVersion;
     }
     try {
@@ -25264,6 +25277,9 @@ async function readTargets(options, fs = nodePublishFs) {
     return targets;
 }
 function lintHeader(warnings) {
+    if (warnings.length > 0 && warnings.every((w) => w.code === "pdf_no_text")) {
+        return "Published, with a note on search:";
+    }
     return warnings.length === 1 && warnings[0]?.code === "interactive-unsanitized" ? "Published (interactive):" : "Published, but this HTML may render degraded in the reader:";
 }
 function printLintWarnings(ctx, warnings, prefix) {
@@ -28154,7 +28170,11 @@ var USAGE_TEXT = buildUsage({
 });
 function rows(items) {
     const width = Math.max(0, ...items.map((item) => item.label.length));
-    return items.map((item) => `  ${item.label.padEnd(width)}  ${plural2(item.count, "document")}`);
+    return items.map((item) => {
+        const row2 = `  ${item.label.padEnd(width)}  ${plural2(item.count, "document")}`;
+        const match = item.matchesCollection;
+        return match === void 0 ? row2 : `${row2}  (all in collection "${match.name}" (${match.slug}); suggest the collection instead)`;
+    });
 }
 function formatLabels(data) {
     const lines = [];
@@ -28269,7 +28289,7 @@ function packagedSkillPath(env, moduleUrl = import.meta.url) {
     if (override !== void 0 && override !== "")
         return resolve(override);
     const here = dirname2(fileURLToPath(moduleUrl));
-    const bundled = "1.4.0".length > 0;
+    const bundled = "1.5.0".length > 0;
     return bundled ? join4(here, "SKILL.md") : join4(here, "..", "..", "SKILL.md");
 }
 var INSTALL_USAGE = buildUsage({
@@ -28961,8 +28981,7 @@ async function runCommand(argv, deps = defaultDeps()) {
 function printLintWarnings2(ctx, warnings, prefix) {
     if (ctx.json || warnings === void 0 || warnings.length === 0)
         return;
-    const only = warnings.length === 1 ? warnings[0] : void 0;
-    const header = only?.code === "interactive-unsanitized" ? "Published (interactive):" : "Published, but this HTML may render degraded in the reader:";
+    const header = lintHeader(warnings);
     const lines = warnings.map((w) => `  - ${w.message}`);
     if (prefix !== void 0)
         ctx.warn(`${prefix}:`, header, ...lines);
