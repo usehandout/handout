@@ -86,7 +86,8 @@ Every command takes the global flags `--workspace/-w`, `--host`, `--json`, `--qu
 | `versions`                                | `handout versions list q3-report`                               | list, `source`, `restore`, `prune --keep <n>`, `diff <slug> <v1> <v2>`                                    |
 | `invite`                                  | `handout invite q3-report --to a@b.com`                         | a confirmation line                                                                                       |
 | `activity` / `audit` / `acks`             | `handout activity q3-report`                                    | views, history, acknowledgments                                                                           |
-| `list`                                    | `handout list --label finance`                                  | url, audience, type, title per line                                                                       |
+| `list`                                    | `handout list --label report`                                   | url, audience, type, title per line; `--collection <slug>` filters to one collection                      |
+| `labels`                                  | `handout labels --json`                                         | the workspace's suggested labels with usage counts                                                        |
 | `get`                                     | `handout get q3-report`                                         | a key/value block                                                                                         |
 | `search`                                  | `handout search "quarterly"`                                    | slug, where it matched, title                                                                             |
 | `source`                                  | `handout source q3-report --out report.md`                      | the source file                                                                                           |
@@ -110,6 +111,19 @@ Every command takes the global flags `--workspace/-w`, `--host`, `--json`, `--qu
 
 `handout --version` prints the installed version. `handout <command> --help` prints that command's flags.
 
+## Labels and collections
+
+**The rule: a label says what kind of document it is; a collection says what it belongs to.** `plan`, `spec`, `report`, `review`, `guide`, `notes`, `proposal` and `prototype` are labels. A project, a client, a quarter or a team (`handout`, `q3`, `contoso`) is a collection. Never use a status (`draft`, `final`) as a label.
+
+Each workspace keeps a short, editable list of suggested labels. Before you label anything:
+
+1. Run `handout labels --json`. `suggested` is the list, each entry with the number of documents that carry it; `other` is labels in use that are not suggested.
+2. Pick from `suggested`, one or two per document. Reuse an existing spelling instead of a variant (`Plan` vs `plan`).
+3. If nothing on the list fits, **ask the user before inventing a label**. A free-text label is still accepted, but a guessed one becomes a permanent near-duplicate. When `suggested` is empty and `seedable` is true, the workspace already uses labels and has no list yet: do not invent one; tell the user they can adopt the suggested set on the workspace's settings page.
+4. When two or more documents share a project, client or period, **suggest a collection** (`handout collections create` and `collections add`) instead of a label, and ask before creating it. `handout list --collection <slug>` lists what is in one, and `handout get <slug>` shows the collections a document is in. Never label a document with its collection's name.
+
+The user's account `defaultLabels` setting is separate: it stamps labels on every publish, and you never change it unless asked.
+
 ## Publish what you just generated
 
 1. Write the file to disk first; the CLI publishes files, not stdin. Use the extension that matches the content (`.html`, `.md`, `.pdf`) or pass `--content-type`. Word (`.docx`) is not supported: export it as PDF, or convert it to Markdown or HTML first. A document may be up to 20 MB (the account's limit can be lower; the CLI reports it).
@@ -117,7 +131,7 @@ Every command takes the global flags `--workspace/-w`, `--host`, `--json`, `--qu
 3. For rich HTML, run the grep checklist in the HTML authoring section and fix every hit, or publish `--interactive` when the document genuinely needs scripts and the user accepts the audience rule.
 4. Read the account publishing defaults as described above. Explicit audience requests override them: "just for me" is `--exposure private`; "the team" is `--exposure people --people @acme.com`; named people or a domain is `--people a@b.com --people @acme.com` (this implies `people`); "anyone with the link" is `--exposure open`; "with a password" is `--password -` (reads the password from stdin, so it stays out of the process list). Otherwise omit `--exposure` to honor the saved account default, falling back to `private` server-side. Never explicitly select `open` without a user instruction; an existing saved default is applied by the server, not rewritten as a hardcoded flag.
 5. Give it a short, real title: the document's own `<title>` or first heading, or `--title "<short title>"` when it has none (always for a PDF). The link is made from the title plus 8 random characters (`q3-report-k7f2qx9a`), so it reads well and still can't be guessed. Anyone who sees the link sees those title words, whatever the audience, so for a sensitive document ask the user for a neutral title. Leave out `--slug` unless the user asks for a specific link; then pass a short kebab-case one (`--slug q3-report`) and tell them a link like that can be guessed by anyone who knows the workspace, which matters for "anyone with the link" and password documents.
-6. Run `handout publish <file> [--exposure ...] [--title ...] [--label ...] --json` and read `items[0].url`, `slug`, `version` and `warnings`.
+6. Choose labels as described in Labels and collections (`handout labels --json`, pick from `suggested`, ask before inventing one). Run `handout publish <file> [--exposure ...] [--title ...] [--label ...] --json` and read `items[0].url`, `slug`, `version` and `warnings`.
 7. Report the URL to the user verbatim. If `warnings` is not empty, summarise each in one line and offer to fix the file and run `handout update <slug> <file>`.
 8. If the slug came back as 12 random characters (`aB3xY9zQ1pR7`), the document had no usable title. Rename it at once, before the link is shared, since a rename breaks the old link: `handout rename <slug> <kebab-case-title>-<8 random lowercase letters and digits>`. Give later versions a title.
 9. Remember the slug for the rest of the conversation. Later edits are `handout update <slug> <file>` (same link, new version), never a second `publish`, which mints a second link. `handout upsert <file> --slug <slug>` creates or updates in one call when you already know the slug.
@@ -130,9 +144,9 @@ For retry safety without `upsert`, generate one UUID per logical publish and pas
 
 Before writing a document from scratch, before answering "where is the ...", and before any command that takes a slug the user did not give verbatim:
 
-1. Run `handout search "<two or more words from the request>" --json`. Use `handout list --json` (optionally `--label`) for browse-shaped requests, and `handout library --json` or `handout shared --json` when the user is a reader rather than the publisher.
+1. Run `handout search "<two or more words from the request>" --json`. Use `handout list --json` (optionally `--label` for a kind of document or `--collection` for a project) for browse-shaped requests, and `handout library --json` or `handout shared --json` when the user is a reader rather than the publisher.
 2. Exactly one match: confirm the slug and title with the user in one line, then proceed. Several: present `slug - title (updated)` candidates and ask; never pick the first row silently. None: say so and offer to publish anew (or `collections create` for a collection).
-3. Resolve labels the same way: collect the union of `labels` from `handout list --json` and reuse an existing spelling when the requested label is only a case or hyphenation variant (`Q3` vs `q3` vs `q3-report`). Apply a genuinely new label as given.
+3. Resolve labels from `handout labels --json`, not by guessing: reuse the suggested spelling when the requested label is only a case or hyphenation variant (`Report` vs `report`), and when the request names a topic or project (`finance`, `Q3`) treat it as a collection, not a label. If no suggested label fits, ask the user before creating one.
 4. Resolve a collection by `handout collections list --json` and fuzzy-matching the user's words against `name`; confirm before `collections add` or `--collection`.
 5. If the user pasted a Handout link, pass it as the `<ref>` directly; the CLI accepts links and `<handle>/<slug>`.
 6. Ambiguity is always the user's call. A guessed slug is a `404`, and a guessed label is a permanent near-duplicate.
@@ -149,7 +163,7 @@ Before writing a document from scratch, before answering "where is the ...", and
 - `--people` takes email addresses and whole domains (`@contoso.example`), repeatable or comma-separated, at most 200 entries; it implies `--exposure people`. `--invite <email>` (at most 25) also emails the people a link.
 - `--password <secret>` is 4 to 128 characters and implies `--exposure password`. Prefer `--password -` or the `HANDOUT_DOCUMENT_PASSWORD` variable over a literal argument.
 - Link controls: `--expires <when>` (a date, or a duration such as `7d`, `24h`, `30m`), `--max-views <n>`, `--one-time`, and `--revoke` / `--restore` on `manage`.
-- Labels: `--label <name>`, repeatable, at most 10 per document, 1 to 24 characters each.
+- Labels: `--label <name>`, repeatable, at most 10 per document, 1 to 24 characters each. A label says what kind of document it is; pick from `handout labels --json`.
 - Listing: new documents are unlisted (kept off the publisher's public page). Pass `--no-unlisted` ("show on my public page") only when the user asks for that.
 - Other switches: `--unlisted`, `--notify-on-view`, `--request-ack` (not with `--exposure password` or `open`: only signed-in readers of a private or people document can acknowledge), `--allow-source-download`, `--allow-external-images`, and for PDFs `--view-only` and `--watermark`.
 
@@ -263,7 +277,7 @@ An interactive page may only talk to the origins you allow with `--connect-src <
 Each line shows the command and its expected output.
 
 1. `handout publish report.html` prints `https://handout.app/acme/q3-report-k7f2qx9a` (the link comes from the document's title, `Q3 report`).
-2. `handout publish report.md --exposure open --title "Q3 report" --label finance --label q3 --json` prints `{"items":[{"file":"report.md","handle":"acme","slug":"...","id":"...","url":"...","exposure":"open","version":1,...}]}`.
+2. `handout publish report.md --exposure open --title "Q3 report" --label report --json` prints `{"items":[{"file":"report.md","handle":"acme","slug":"...","id":"...","url":"...","exposure":"open","version":1,...}]}`.
 3. `handout publish deck.pdf --people vicki@contoso.example --people @contoso.example --invite vicki@contoso.example` prints the URL (stderr: `published acme/... v1 pdf 2.3 MB people`).
 4. `handout publish spec.html --exposure password --password - < pw.txt` prints the URL.
 5. `handout update q3-report report.md --diff-summary "Added the Q4 numbers."` prints the same URL (stderr: `updated acme/q3-report v2 ...`); returning readers see "What's new in v2: Added the Q4 numbers."

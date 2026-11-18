@@ -19527,10 +19527,180 @@ var Ulid = external_exports.string().regex(ULID_PATTERN, { message: "Expected a 
 var IsoInstant = external_exports.iso.datetime();
 var OperatorRole = external_exports.string();
 var CanList = external_exports.array(external_exports.string());
+var ReportReason = external_exports.enum([
+    "spam",
+    "phishing",
+    "malware",
+    "copyright",
+    "illegal",
+    "harassment",
+    "other",
+    "privacy",
+    "intimate_imagery",
+    "child_safety",
+    "imminent_danger",
+    "official_order"
+]);
+var standard = {
+    urgent: false,
+    deadline: { businessDays: 1 },
+    restricted: false,
+    noContentView: false,
+    uncapped: false,
+    elevatedLift: false
+};
+var REPORT_CATEGORY_POLICY = {
+    spam: standard,
+    harassment: standard,
+    privacy: standard,
+    illegal: standard,
+    other: standard,
+    phishing: { ...standard, urgent: true, deadline: { hours: 24 }, acknowledgeWithinHours: 4 },
+    malware: { ...standard, urgent: true, deadline: { hours: 24 }, acknowledgeWithinHours: 4 },
+    copyright: { ...standard, deadline: { businessDays: 2 } },
+    official_order: {
+        ...standard,
+        urgent: true,
+        deadline: { businessDays: 5 },
+        acknowledgeWithinHours: 4,
+        elevatedLift: true
+    },
+    intimate_imagery: {
+        ...standard,
+        urgent: true,
+        deadline: { hours: 48 },
+        restricted: true,
+        acknowledgeWithinHours: 4,
+        elevatedLift: true
+    },
+    child_safety: {
+        urgent: true,
+        deadline: { hours: 24 },
+        restricted: true,
+        noContentView: true,
+        uncapped: true,
+        acknowledgeWithinHours: 1,
+        elevatedLift: true
+    },
+    imminent_danger: {
+        ...standard,
+        urgent: true,
+        deadline: { hours: 1 },
+        uncapped: true,
+        acknowledgeWithinHours: 1,
+        elevatedLift: true
+    }
+};
+var HOUR_MS = 60 * 60 * 1000;
+var DAY_MS = 24 * HOUR_MS;
+var ReportDate = external_exports.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+var ReportNotice = external_exports.object({
+    work: external_exports.string().trim().min(1).max(1000).optional(),
+    depicted: external_exports.enum(["self", "representative"]).optional(),
+    authority: external_exports.string().trim().min(1).max(200).optional(),
+    reference: external_exports.string().trim().min(1).max(200).optional(),
+    respondBy: ReportDate.optional(),
+    goodFaith: external_exports.literal(true).optional(),
+    accurate: external_exports.literal(true).optional(),
+    signature: external_exports.string().trim().min(1).max(200).optional()
+});
+var ReportPublicStatus = external_exports.enum([
+    "received",
+    "under_review",
+    "closed_actioned",
+    "closed_no_action"
+]);
+var ReportStatus = external_exports.enum(["open", "dismissed", "actioned"]);
+var ReportTargetType = external_exports.enum(["document", "collection"]);
+var REPORT_DETAILS_MAX_LENGTH = 2000;
+var EvidenceItem = external_exports.object({
+    id: Ulid,
+    key: external_exports.string(),
+    documentId: Ulid,
+    version: external_exports.number().int().min(1),
+    contentType: external_exports.string(),
+    at: external_exports.string(),
+    by: external_exports.string()
+});
+var APPEAL_STATEMENT_MAX_LENGTH = 2000;
+var APPEAL_NOTE_MAX_LENGTH = 1000;
+var CounterNotice = external_exports.object({
+    name: external_exports.string().trim().min(1).max(200),
+    address: external_exports.string().trim().min(1).max(500),
+    phone: external_exports.string().trim().min(3).max(50),
+    email: external_exports.email().max(320),
+    material: external_exports.string().trim().min(1).max(1000),
+    mistake: external_exports.literal(true),
+    jurisdiction: external_exports.literal(true),
+    signature: external_exports.string().trim().min(1).max(200)
+});
+var AppealKind = external_exports.enum(["appeal", "counter_notice"]);
+var AppealStatus = external_exports.enum([
+    "open",
+    "upheld",
+    "reversed",
+    "waiting",
+    "restored",
+    "suit_filed"
+]);
+var ReportAppeal = external_exports.object({
+    kind: AppealKind,
+    status: AppealStatus,
+    documentId: Ulid,
+    at: external_exports.string(),
+    by: external_exports.string(),
+    statement: external_exports.string().max(APPEAL_STATEMENT_MAX_LENGTH).optional(),
+    counterNotice: CounterNotice.optional(),
+    dueAt: external_exports.string().optional(),
+    escalatedAt: external_exports.string().optional(),
+    forwardedAt: external_exports.string().optional(),
+    forwardedBy: external_exports.string().optional(),
+    restoreAfter: external_exports.string().optional(),
+    restoreBy: external_exports.string().optional(),
+    decidedAt: external_exports.string().optional(),
+    decidedBy: external_exports.string().optional(),
+    note: external_exports.string().max(APPEAL_NOTE_MAX_LENGTH).optional(),
+    sameOperator: external_exports.boolean().optional()
+});
+var ReportRecord = external_exports.object({
+    id: Ulid,
+    targetType: external_exports.enum(["document", "collection", "url"]),
+    submittedUrl: external_exports.string().url().max(2048).optional(),
+    documentId: Ulid.optional(),
+    collectionId: Ulid.optional(),
+    workspaceId: Ulid.optional(),
+    handle: external_exports.string(),
+    slug: external_exports.string(),
+    version: external_exports.number().int().min(1).optional(),
+    reason: ReportReason,
+    details: external_exports.string().max(REPORT_DETAILS_MAX_LENGTH).optional(),
+    reporterUid: external_exports.string().optional(),
+    reporterEmail: external_exports.string().optional(),
+    reporterIpHash: external_exports.string().optional(),
+    createdAt: external_exports.string(),
+    status: ReportStatus,
+    resolvedAt: external_exports.string().optional(),
+    resolutionNote: external_exports.string().optional(),
+    alertedAt: external_exports.string().optional(),
+    digestedAt: external_exports.string().optional(),
+    dueAt: external_exports.string().optional(),
+    notice: ReportNotice.optional(),
+    statusTokenHash: external_exports.string().optional(),
+    receiptTo: external_exports.string().optional(),
+    acknowledgedAt: external_exports.string().optional(),
+    acknowledgedBy: external_exports.string().optional(),
+    ackEscalatedAt: external_exports.string().optional(),
+    overdueEscalatedAt: external_exports.string().optional(),
+    evidence: external_exports.array(EvidenceItem).optional(),
+    appeal: ReportAppeal.optional()
+}).refine((report) => report.targetType === "url" ? report.submittedUrl !== void 0 && report.documentId === void 0 && report.collectionId === void 0 : report.workspaceId !== void 0 && (report.targetType === "document" ? report.documentId !== void 0 && report.collectionId === void 0 : report.collectionId !== void 0 && report.documentId === void 0), {
+    message: "A report names exactly one target: documentId for a document, collectionId for a collection."
+});
 var ContentType = external_exports.enum(["html", "markdown", "pdf"]);
 function isBinaryContentType(contentType) {
     return contentType === "pdf";
 }
+var MARKDOWN_MAX_BYTES = 2097152;
 var CONTENT_TYPE_EXTENSIONS = {
     html: "html",
     markdown: "md",
@@ -19600,6 +19770,9 @@ var AllowlistEntry = external_exports.string().trim().max(MAX_ALLOWLIST_ENTRY_LE
 var DocumentLabel = external_exports.string().trim().min(1).max(24);
 var MAX_LABELS_PER_DOCUMENT = 10;
 var MAX_LABELS_MESSAGE = "A document can have at most 10 labels.";
+var MAX_SUGGESTED_LABELS = 30;
+var MAX_SUGGESTED_LABELS_MESSAGE = `A workspace can have at most ${MAX_SUGGESTED_LABELS} suggested labels.`;
+var SuggestedLabels = external_exports.array(DocumentLabel).max(MAX_SUGGESTED_LABELS, MAX_SUGGESTED_LABELS_MESSAGE);
 var PASSWORD_MIN_LENGTH = 4;
 var PASSWORD_MAX_LENGTH = 128;
 var TITLE_MAX_LENGTH = 512;
@@ -19662,7 +19835,19 @@ var DocumentRecord = external_exports.object({
     sizeBytes: external_exports.number().int().nonnegative(),
     expiresAt: external_exports.string().optional(),
     revokedAt: external_exports.string().optional(),
-    takedown: external_exports.object({ at: external_exports.string(), reason: external_exports.string(), reportId: Ulid.optional() }).optional(),
+    takedown: external_exports.object({
+        at: external_exports.string(),
+        reason: external_exports.string(),
+        reportId: Ulid.optional(),
+        category: ReportReason.optional()
+    }).optional(),
+    legalHold: external_exports.object({
+        at: external_exports.string(),
+        by: external_exports.string(),
+        reason: external_exports.string(),
+        reportId: Ulid.optional(),
+        until: external_exports.string().optional()
+    }).optional(),
     passwordHash: external_exports.string().optional(),
     branding: DocumentBranding.optional(),
     labels: external_exports.array(external_exports.string()).optional(),
@@ -19900,7 +20085,9 @@ var GrantablePlan = external_exports.enum(["friends", "internal"]);
 var PlanLimits = external_exports.object({
     liveDocuments: external_exports.number(),
     maxDocumentBytes: external_exports.number(),
+    storagePoolBytes: external_exports.number(),
     versionRetention: external_exports.union([external_exports.number(), external_exports.literal("all")]),
+    versionRestore: external_exports.boolean(),
     rungs: external_exports.array(Exposure),
     linkControls: external_exports.boolean(),
     readerFooter: external_exports.boolean(),
@@ -19913,7 +20100,9 @@ var PLAN_LIMITS = {
     free: {
         liveDocuments: 10,
         maxDocumentBytes: 5242880,
+        storagePoolBytes: 104857600,
         versionRetention: 5,
+        versionRestore: false,
         rungs: ["private", "open"],
         linkControls: false,
         readerFooter: true,
@@ -19925,7 +20114,9 @@ var PLAN_LIMITS = {
     plus: {
         liveDocuments: 500,
         maxDocumentBytes: 20971520,
-        versionRetention: "all",
+        storagePoolBytes: 5368709120,
+        versionRetention: 100,
+        versionRestore: true,
         rungs: ["private", "people", "password", "open"],
         linkControls: true,
         readerFooter: false,
@@ -19937,7 +20128,9 @@ var PLAN_LIMITS = {
     friends: {
         liveDocuments: 2000,
         maxDocumentBytes: 20971520,
-        versionRetention: "all",
+        storagePoolBytes: 26843545600,
+        versionRetention: 100,
+        versionRestore: true,
         rungs: ["private", "people", "password", "open"],
         linkControls: true,
         readerFooter: false,
@@ -19949,7 +20142,9 @@ var PLAN_LIMITS = {
     internal: {
         liveDocuments: 10000,
         maxDocumentBytes: 20971520,
+        storagePoolBytes: 107374182400,
         versionRetention: "all",
+        versionRestore: true,
         rungs: ["private", "people", "password", "open"],
         linkControls: true,
         readerFooter: false,
@@ -19962,6 +20157,7 @@ var PLAN_LIMITS = {
 var PlanLimitName = external_exports.enum([
     "liveDocuments",
     "maxDocumentBytes",
+    "storagePoolBytes",
     "versionRetention",
     "rungs",
     "linkControls",
@@ -20091,6 +20287,8 @@ var WorkspaceRecord = external_exports.object({
     handle: external_exports.string(),
     name: external_exports.string().min(1).max(WORKSPACE_NAME_MAX_LENGTH),
     branding: DocumentBranding.optional(),
+    suggestedLabels: external_exports.array(external_exports.string()).optional(),
+    suggestedLabelsOffer: external_exports.boolean().optional(),
     createdBy: external_exports.string(),
     createdAt: external_exports.string(),
     updatedAt: external_exports.string(),
@@ -20161,42 +20359,6 @@ var SaveRecord = external_exports.preprocess((raw) => {
     targetId: Ulid,
     savedAt: external_exports.string()
 }));
-var ReportReason = external_exports.enum([
-    "spam",
-    "phishing",
-    "malware",
-    "copyright",
-    "illegal",
-    "harassment",
-    "other"
-]);
-var ReportStatus = external_exports.enum(["open", "dismissed", "actioned"]);
-var ReportTargetType = external_exports.enum(["document", "collection"]);
-var REPORT_DETAILS_MAX_LENGTH = 2000;
-var ReportRecord = external_exports.object({
-    id: Ulid,
-    targetType: external_exports.enum(["document", "collection", "url"]),
-    submittedUrl: external_exports.string().url().max(2048).optional(),
-    documentId: Ulid.optional(),
-    collectionId: Ulid.optional(),
-    workspaceId: Ulid.optional(),
-    handle: external_exports.string(),
-    slug: external_exports.string(),
-    version: external_exports.number().int().min(1).optional(),
-    reason: ReportReason,
-    details: external_exports.string().max(REPORT_DETAILS_MAX_LENGTH).optional(),
-    reporterUid: external_exports.string().optional(),
-    reporterEmail: external_exports.string().optional(),
-    reporterIpHash: external_exports.string().optional(),
-    createdAt: external_exports.string(),
-    status: ReportStatus,
-    resolvedAt: external_exports.string().optional(),
-    resolutionNote: external_exports.string().optional(),
-    alertedAt: external_exports.string().optional(),
-    digestedAt: external_exports.string().optional()
-}).refine((report) => report.targetType === "url" ? report.submittedUrl !== void 0 && report.documentId === void 0 && report.collectionId === void 0 : report.workspaceId !== void 0 && (report.targetType === "document" ? report.documentId !== void 0 && report.collectionId === void 0 : report.collectionId !== void 0 && report.documentId === void 0), {
-    message: "A report names exactly one target: documentId for a document, collectionId for a collection."
-});
 var ErrorCode = external_exports.enum([
     "validation_failed",
     "bad_request",
@@ -20257,6 +20419,8 @@ var WorkspaceResponse = external_exports.object({
     name: external_exports.string(),
     url: external_exports.string(),
     branding: DocumentBranding.optional(),
+    suggestedLabels: external_exports.array(external_exports.string()).optional(),
+    suggestedLabelsSeedable: external_exports.boolean().optional(),
     liveDocuments: external_exports.number().int().nonnegative(),
     collections: external_exports.number().int().nonnegative(),
     createdAt: external_exports.string(),
@@ -20268,7 +20432,15 @@ var WorkspaceResponse = external_exports.object({
 var MyWorkspacesResponse = external_exports.object({ items: external_exports.array(WorkspaceResponse) });
 var PatchWorkspaceRequest = external_exports.object({
     name: WorkspaceName.optional(),
-    branding: DocumentBranding.nullable().optional()
+    branding: DocumentBranding.nullable().optional(),
+    suggestedLabels: SuggestedLabels.optional(),
+    expectedUpdatedAt: IsoInstant.optional()
+});
+var LabelUsage = external_exports.object({ label: external_exports.string(), count: external_exports.number().int().nonnegative() });
+var WorkspaceLabelsResponse = external_exports.object({
+    suggested: external_exports.array(LabelUsage),
+    other: external_exports.array(LabelUsage),
+    seedable: external_exports.boolean().optional()
 });
 var DeleteWorkspaceResponse = external_exports.object({
     id: Ulid,
@@ -20386,6 +20558,7 @@ var CreateDocumentResponse = external_exports.object({
     invitesFailed: external_exports.array(external_exports.string()).optional(),
     warnings: external_exports.array(HtmlLintWarning).optional()
 });
+var DocumentCollectionRef = external_exports.object({ slug: external_exports.string(), name: external_exports.string() });
 var ListDocumentsItem = external_exports.object({
     id: Ulid,
     can: CanList.optional(),
@@ -20403,6 +20576,7 @@ var ListDocumentsItem = external_exports.object({
     takenDown: external_exports.boolean().optional(),
     passwordProtected: external_exports.boolean().optional(),
     labels: external_exports.array(external_exports.string()).optional(),
+    collections: external_exports.array(DocumentCollectionRef).optional(),
     unlisted: external_exports.boolean().optional(),
     deletedAt: external_exports.string().optional(),
     purgeAt: external_exports.string().optional(),
@@ -20425,6 +20599,7 @@ var ListDocumentsItem = external_exports.object({
 var ListDocumentsQuery = Pagination.extend({
     filter: external_exports.enum(["live", "trashed"]).default("live"),
     label: DocumentLabel.optional(),
+    collection: SlugRef.optional(),
     sort: external_exports.enum(["updatedAt", "createdAt", "title"]).default("updatedAt")
 });
 var ListDocumentsResponse = page(ListDocumentsItem);
@@ -20468,6 +20643,7 @@ var OwnerDocumentResponse = DocumentRecord.omit({
     passwordProtected: external_exports.boolean().optional(),
     purgeAt: external_exports.string().optional(),
     awareness: EditAwareness.optional(),
+    collections: external_exports.array(DocumentCollectionRef).optional(),
     followersRemoved: external_exports.number().int().positive().optional()
 });
 var PatchDocumentRequest = external_exports.object({
@@ -20704,6 +20880,28 @@ var SearchDocumentsResponse = external_exports.object({
     query: external_exports.string(),
     items: external_exports.array(SearchDocumentsItem)
 });
+var PublisherAppeal = ReportAppeal.pick({
+    kind: true,
+    status: true,
+    at: true,
+    restoreAfter: true,
+    restoreBy: true,
+    decidedAt: true,
+    note: true
+});
+var DocumentAppealResponse = external_exports.object({
+    takedown: external_exports.object({ at: external_exports.string(), reason: external_exports.string(), category: ReportReason.optional() }),
+    appeal: PublisherAppeal.optional(),
+    canAppeal: external_exports.boolean(),
+    counterNoticeAllowed: external_exports.boolean()
+});
+var FileAppealRequest = external_exports.discriminatedUnion("kind", [
+    external_exports.object({
+        kind: external_exports.literal("appeal"),
+        statement: external_exports.string().trim().min(1).max(APPEAL_STATEMENT_MAX_LENGTH)
+    }),
+    external_exports.object({ kind: external_exports.literal("counter_notice"), counterNotice: CounterNotice })
+]);
 var OwnedSearchItem = SearchDocumentsItem.extend({
     handle: external_exports.string(),
     workspaceName: external_exports.string()
@@ -20877,12 +21075,14 @@ var GatedMetaResponse = external_exports.object({
 function isGatedMeta(meta3) {
     return "gate" in meta3;
 }
+var SignedRequestHeaders = external_exports.record(external_exports.string(), external_exports.string());
 var PublicContentResponse = external_exports.object({
     contentType: ContentType,
     version: external_exports.number().int().min(1),
     html: external_exports.string().optional(),
     data: external_exports.string().optional(),
     dataUrl: external_exports.string().optional(),
+    dataHeaders: SignedRequestHeaders.optional(),
     mediaType: external_exports.string().optional(),
     viewOnly: external_exports.boolean().optional(),
     watermark: external_exports.boolean().optional(),
@@ -20938,6 +21138,7 @@ var InteractiveContentUrlResponse = external_exports.object({
 });
 var SourceDownloadResponse = external_exports.object({
     url: external_exports.string(),
+    headers: SignedRequestHeaders.optional(),
     filename: external_exports.string(),
     expiresAt: external_exports.string()
 });
@@ -21130,7 +21331,9 @@ var MeResponse = external_exports.object({
     plan: PlanId,
     pool: external_exports.object({
         liveDocuments: external_exports.number().int().nonnegative(),
-        limit: external_exports.number().int().positive()
+        limit: external_exports.number().int().positive(),
+        storageBytes: external_exports.number().int().nonnegative().optional(),
+        storageLimit: external_exports.number().int().positive().optional()
     }),
     settings: SettingsResponse,
     workspaces: external_exports.array(WorkspaceResponse),
@@ -21311,7 +21514,9 @@ var UsageResponse = external_exports.object({
     limits: PlanLimits,
     pool: external_exports.object({
         liveDocuments: external_exports.number().int().nonnegative(),
-        limit: external_exports.number().int().positive()
+        limit: external_exports.number().int().positive(),
+        storageBytes: external_exports.number().int().nonnegative().optional(),
+        storageLimit: external_exports.number().int().positive().optional()
     }),
     totals: external_exports.object({
         documents: external_exports.number().int().nonnegative(),
@@ -21349,7 +21554,11 @@ var CreateReportRequest = external_exports.object({
     details: external_exports.string().trim().max(2000).optional(),
     email: external_exports.email().optional()
 });
-var CreateReportResponse = external_exports.object({ id: Ulid, createdAt: external_exports.string() });
+var CreateReportResponse = external_exports.object({
+    id: Ulid,
+    createdAt: external_exports.string(),
+    statusUrl: external_exports.string().optional()
+});
 var HealthResponse = external_exports.object({ status: external_exports.literal("ok"), version: external_exports.string().optional() });
 var ReadinessCheck = external_exports.enum(["ok", "error"]);
 var ReadinessResponse = external_exports.object({
@@ -21501,8 +21710,8 @@ function plural2(n, word, pluralWord = `${word}s`) {
 function fields(...parts) {
     return parts.filter((p) => typeof p === "string" && p !== "").join("  ");
 }
-function keyValueBlock(rows) {
-    return rows.filter((row2) => row2[1] !== void 0).map(([key, value]) => `${key}: ${value}`).join("\n");
+function keyValueBlock(rows2) {
+    return rows2.filter((row2) => row2[1] !== void 0).map(([key, value]) => `${key}: ${value}`).join("\n");
 }
 function describeAwareness(awareness) {
     const parts = [`v${awareness.currentVersion}`];
@@ -21786,9 +21995,12 @@ async function readContent(path, type, fs = nodePublishFs) {
 function megabytes(bytes) {
     return `${bytes / 1048576} MB`;
 }
-function assertWithinUploadLimit(path, sizeBytes) {
+function assertWithinUploadLimit(path, sizeBytes, contentType) {
     if (sizeBytes > MAX_UPLOAD_BYTES) {
         throw fileError(`${path} is too large to upload (${humanizeBytes(sizeBytes)}): the largest document is ${megabytes(MAX_UPLOAD_BYTES)}.`);
+    }
+    if (contentType === "markdown" && sizeBytes > MARKDOWN_MAX_BYTES) {
+        throw fileError(`${path} is too large to upload (${humanizeBytes(sizeBytes)}): a Markdown document can be at most ${megabytes(MARKDOWN_MAX_BYTES)}. Split it, or publish it as HTML or PDF.`);
     }
 }
 var TITLE_MAX = 512;
@@ -21842,8 +22054,8 @@ var cachedVersion;
 function bundledVersion() {
     if (cachedVersion !== void 0)
         return cachedVersion;
-    if ("1.3.0".length > 0) {
-        cachedVersion = "1.3.0";
+    if ("1.4.0".length > 0) {
+        cachedVersion = "1.4.0";
         return cachedVersion;
     }
     try {
@@ -23729,10 +23941,11 @@ function createClient(options) {
         }
         return { status: response.status, data: result2.data, headers: response.headers, requestId };
     }
-    async function fetchSigned(url2, what = "source file") {
+    async function fetchSigned(url2, what = "source file", headers = {}) {
         let response;
         try {
             response = await fetchImpl(url2, {
+                headers: { ...headers },
                 signal: AbortSignal.timeout(TIMEOUT_MS.signed)
             });
         }
@@ -23833,6 +24046,12 @@ function createClient(options) {
             schema: WorkspaceResponse,
             context: ws(handle, void 0, "workspace")
         }),
+        getWorkspaceLabels: (handle) => call({
+            method: "GET",
+            path: `${W(handle)}/labels`,
+            schema: WorkspaceLabelsResponse,
+            context: ws(handle, void 0, "workspace")
+        }),
         patchWorkspace: (handle, body) => call({
             method: "PATCH",
             path: W(handle),
@@ -23868,6 +24087,7 @@ function createClient(options) {
                 filter: query?.filter,
                 sort: query?.sort,
                 label: query?.label,
+                collection: query?.collection,
                 ...listQuery(query)
             },
             schema: ListDocumentsResponse,
@@ -25038,7 +25258,7 @@ async function readTargets(options, fs = nodePublishFs) {
         assertNotWordDocument(file2);
         const contentType = options.contentType ?? inferContentType(file2);
         const { content, sizeBytes } = await readContent(file2, contentType, fs);
-        assertWithinUploadLimit(file2, sizeBytes);
+        assertWithinUploadLimit(file2, sizeBytes, contentType);
         targets.push({ file: file2, contentType, content, sizeBytes });
     }
     return targets;
@@ -25722,18 +25942,23 @@ async function emitBytes(bytes, options) {
 var USAGE = {
     list: buildUsage({
         synopsis: [
-            "handout list [--trashed] [--label <name>] [--sort updatedAt|createdAt|title] [--limit <n>] [--cursor <token>] [--all]"
+            "handout list [--trashed] [--label <name>] [--collection <slug>] [--sort updatedAt|createdAt|title] [--limit <n>] [--cursor <token>] [--all]"
         ],
         description: "Lists the documents of the selected workspace.",
         flags: [
             ["--trashed", "List the trash instead of live documents"],
-            ["--label <name>", "Only documents carrying this label"],
+            ["--label <name>", "Only documents carrying this label (what kind of document it is)"],
+            ["--collection <slug>", "Only documents in this collection (what they belong to)"],
             ["--sort <key>", "updatedAt (default), createdAt or title"],
             ["--limit <n>", "Page size, 1-200"],
             ["--cursor <token>", "Continue from a previous page"],
             ["--all", "Walk every page"]
         ],
-        examples: ["handout list --label q3", "handout list --all --json"]
+        examples: [
+            "handout list --label report",
+            "handout list --collection q3-launch",
+            "handout list --all --json"
+        ]
     }),
     get: buildUsage({
         synopsis: ["handout get <ref> [--password <secret>]"],
@@ -25868,7 +26093,7 @@ async function listDocuments(ctx) {
     const scanned = scanArgs(ctx.args, {
         context,
         usage: USAGE.list,
-        values: ["--label", "--sort", "--limit", "--cursor"],
+        values: ["--label", "--collection", "--sort", "--limit", "--cursor"],
         booleans: ["--trashed", "--all"]
     });
     expectPositionals(scanned, context, 0);
@@ -25887,12 +26112,18 @@ async function listDocuments(ctx) {
     if (label !== void 0 && !DocumentLabel.safeParse(label).success) {
         throw usageError(`--label "${label}" must be 1-24 characters.`);
     }
+    const collectionRaw = lastValue(scanned, "--collection")?.trim();
+    const collection = collectionRaw === void 0 || collectionRaw === "" ? void 0 : collectionRaw;
+    if (collection !== void 0 && !SlugRef.safeParse(collection).success) {
+        throw usageError(`--collection "${collection}" is not a collection slug.`);
+    }
     const trashed = scanned.seen.has("--trashed");
     const handle = await ctx.workspace();
     const client = await ctx.client();
     const query = {
         filter: trashed ? "trashed" : "live",
         ...label === void 0 ? {} : { label },
+        ...collection === void 0 ? {} : { collection },
         ...sort === void 0 ? {} : { sort }
     };
     if (all) {
@@ -25915,7 +26146,7 @@ async function listDocuments(ctx) {
     });
 }
 function formatOwnerDocument(doc) {
-    const rows = [
+    const rows2 = [
         ["title", doc.title],
         ["url", doc.url],
         ["slug", doc.slug],
@@ -25928,52 +26159,55 @@ function formatOwnerDocument(doc) {
     ];
     const when = (value) => value;
     if (doc.allowlist !== void 0 && doc.allowlist.length > 0) {
-        rows.push(["people", String(doc.allowlist.length)]);
+        rows2.push(["people", String(doc.allowlist.length)]);
     }
     if (doc.passwordProtected === true)
-        rows.push(["password", "set"]);
-    rows.push(["expires", when(doc.expiresAt)]);
+        rows2.push(["password", "set"]);
+    rows2.push(["expires", when(doc.expiresAt)]);
     if (doc.maxViews !== void 0)
-        rows.push(["max views", `${doc.viewCount ?? 0} of ${doc.maxViews}`]);
-    rows.push(["revoked", when(doc.revokedAt)]);
+        rows2.push(["max views", `${doc.viewCount ?? 0} of ${doc.maxViews}`]);
+    rows2.push(["revoked", when(doc.revokedAt)]);
     if (doc.takedown !== void 0)
-        rows.push(["taken down", `${doc.takedown.at}: ${doc.takedown.reason}`]);
+        rows2.push(["taken down", `${doc.takedown.at}: ${doc.takedown.reason}`]);
     if (doc.deletedAt !== void 0 || doc.trashed === true) {
-        rows.push(["trashed", doc.purgeAt === void 0 ? "yes" : `purge ${doc.purgeAt}`]);
+        rows2.push(["trashed", doc.purgeAt === void 0 ? "yes" : `purge ${doc.purgeAt}`]);
     }
     if (doc.labels !== void 0 && doc.labels.length > 0)
-        rows.push(["labels", doc.labels.join(", ")]);
+        rows2.push(["labels", doc.labels.join(", ")]);
+    if (doc.collections !== void 0 && doc.collections.length > 0) {
+        rows2.push(["collections", doc.collections.map((c) => `${c.name} (${c.slug})`).join(", ")]);
+    }
     if (doc.unlisted === true)
-        rows.push(["unlisted", "yes"]);
+        rows2.push(["unlisted", "yes"]);
     if (doc.interactive === true) {
         const connect = doc.interactiveConnectSrc ?? [];
-        rows.push([
+        rows2.push([
             "interactive",
             connect.length === 0 ? "yes" : `yes (connect-src: ${connect.join(" ")})`
         ]);
     }
     if (doc.allowSourceDownload !== void 0) {
-        rows.push(["source download", doc.allowSourceDownload ? "allowed" : "off"]);
+        rows2.push(["source download", doc.allowSourceDownload ? "allowed" : "off"]);
     }
     if (doc.allowExternalImages !== void 0) {
-        rows.push(["external images", doc.allowExternalImages ? "allowed" : "blocked"]);
+        rows2.push(["external images", doc.allowExternalImages ? "allowed" : "blocked"]);
     }
     if (doc.requestAcknowledgment === true)
-        rows.push(["request ack", "yes"]);
+        rows2.push(["request ack", "yes"]);
     if (doc.notifyOnView === true)
-        rows.push(["notify on view", "yes"]);
+        rows2.push(["notify on view", "yes"]);
     if (doc.retainVersions !== void 0)
-        rows.push(["retain versions", String(doc.retainVersions)]);
+        rows2.push(["retain versions", String(doc.retainVersions)]);
     if (doc.viewCount !== void 0)
-        rows.push(["views", String(doc.viewCount)]);
-    rows.push(["last viewed", when(doc.lastViewedAt)]);
+        rows2.push(["views", String(doc.viewCount)]);
+    rows2.push(["last viewed", when(doc.lastViewedAt)]);
     if (doc.awareness !== void 0)
-        rows.push(["editing", describeAwareness(doc.awareness)]);
-    return keyValueBlock(rows);
+        rows2.push(["editing", describeAwareness(doc.awareness)]);
+    return keyValueBlock(rows2);
 }
 function formatReaderDocument(meta3, host) {
     const provenance = meta3.provenance;
-    const rows = [
+    const rows2 = [
         ["title", meta3.title],
         ["url", documentUrl(hostWithoutScheme(host), meta3.handle, meta3.slug)],
         [
@@ -25987,9 +26221,9 @@ function formatReaderDocument(meta3, host) {
         ["updated", provenance?.updatedAt]
     ];
     if (provenance !== void 0 && provenance.appearsIn.length > 0) {
-        rows.push(["appears in", provenance.appearsIn.map((c) => c.name).join(", ")]);
+        rows2.push(["appears in", provenance.appearsIn.map((c) => c.name).join(", ")]);
     }
-    return keyValueBlock(rows);
+    return keyValueBlock(rows2);
 }
 registerOutput("doc-get", {
     json: (data) => data.response,
@@ -26071,7 +26305,7 @@ ${SOURCE_HINT(slug)}`, {
         }
         throw err;
     }
-    const bytes = await client.fetchSigned(link.url, "source file");
+    const bytes = await client.fetchSigned(link.url, "source file", link.headers);
     return emitBytes(bytes, {
         out,
         fallbackName: link.filename,
@@ -26116,7 +26350,7 @@ async function readCommand(ctx, writer = nodeWriteFile) {
         bytes = new Uint8Array(Buffer.from(content.data, "base64"));
     }
     else if (content.dataUrl !== void 0) {
-        bytes = await client.fetchSigned(content.dataUrl, "document");
+        bytes = await client.fetchSigned(content.dataUrl, "document", content.dataHeaders);
     }
     else {
         bytes = new Uint8Array();
@@ -26559,7 +26793,7 @@ async function versionsSource(ctx, writer = nodeWriteFile) {
     const { handle, slug } = await resolveDocumentRef(ctx, ref);
     const client = await ctx.client();
     const link = await client.getVersionSource(handle, slug, version2);
-    const bytes = await client.fetchSigned(link.url, "version source");
+    const bytes = await client.fetchSigned(link.url, "version source", link.headers);
     return emitBytes(bytes, {
         out,
         fallbackName: link.filename,
@@ -26616,7 +26850,7 @@ async function versionsDiff(ctx) {
     const client = await ctx.client();
     const [left, right] = await Promise.all([from, to].map(async (version2) => {
         const link = await client.getVersionSource(handle, slug, version2);
-        const bytes = await client.fetchSigned(link.url, "version source");
+        const bytes = await client.fetchSigned(link.url, "version source", link.headers);
         return { filename: link.filename, bytes };
     }));
     if (left === void 0 || right === void 0)
@@ -26693,7 +26927,7 @@ var RESTORE_USAGE = buildUsage({
     examples: ["handout workspaces restore acme"]
 });
 var CONTEXT5 = (sub) => `on handout workspaces ${sub}`;
-var DAY_MS = 86400000;
+var DAY_MS2 = 86400000;
 function parseName2(value, flag = "--name") {
     const name = value.trim();
     if (name === "")
@@ -26867,7 +27101,7 @@ async function runDelete2(ctx) {
     const explicit = scanned.positionals[0];
     requireAnswerable(ctx);
     const handle = await targetHandle(ctx, explicit);
-    const purgeOn = new Date(ctx.now().getTime() + 30 * DAY_MS).toISOString().slice(0, 10);
+    const purgeOn = new Date(ctx.now().getTime() + 30 * DAY_MS2).toISOString().slice(0, 10);
     const confirmed = await ctx.confirm(`This schedules workspace "${handle}" and every document in it for deletion on ${purgeOn}. Type "y" to confirm: `);
     if (!confirmed)
         return result("cancelled", { message: "Deletion cancelled." });
@@ -27734,8 +27968,8 @@ function followingRow(item) {
 function recentRow(item) {
     return fields(item.targetType, item.url, item.title, `updated ${item.updatedAt}`, dormant(item));
 }
-function section(title, rows) {
-    return [title, ...rows.length === 0 ? ["  (none)"] : rows.map((row2) => `  ${row2}`)];
+function section(title, rows2) {
+    return [title, ...rows2.length === 0 ? ["  (none)"] : rows2.map((row2) => `  ${row2}`)];
 }
 function formatLibrary(response) {
     return [
@@ -27908,12 +28142,54 @@ var commands9 = {
     follow: { usage: FOLLOW_USAGE, run: runFollow },
     unfollow: { usage: UNFOLLOW_USAGE, run: runUnfollow }
 };
-var usage_exports = {};
-__export(usage_exports, {
+var labels_exports = {};
+__export(labels_exports, {
     commands: () => commands10,
-    formatUsage: () => formatUsage
+    formatLabels: () => formatLabels
 });
 var USAGE_TEXT = buildUsage({
+    synopsis: ["handout labels"],
+    description: "Shows the workspace's suggested labels with how many documents carry each, then any other labels in use. A label says what kind of document it is (plan, spec, report); a collection says what it belongs to. Pick from the suggested list and ask before inventing a label.",
+    examples: ["handout labels", "handout labels --json"]
+});
+function rows(items) {
+    const width = Math.max(0, ...items.map((item) => item.label.length));
+    return items.map((item) => `  ${item.label.padEnd(width)}  ${plural2(item.count, "document")}`);
+}
+function formatLabels(data) {
+    const lines = [];
+    if (data.suggested.length > 0) {
+        lines.push("Suggested labels:", ...rows(data.suggested));
+    }
+    else if (data.seedable === true) {
+        lines.push("No suggested labels yet. This workspace already uses labels, so none were added for you.", "Adopt the suggested set from the workspace's settings page.");
+    }
+    else {
+        lines.push("No suggested labels.");
+    }
+    if (data.other.length > 0) {
+        if (lines.length > 0)
+            lines.push("");
+        lines.push("Other labels in use (not suggested):", ...rows(data.other));
+    }
+    return lines.join("\n");
+}
+registerOutput("labels", passthrough(formatLabels));
+async function runLabels(ctx) {
+    const context = "on handout labels";
+    expectPositionals(scanArgs(ctx.args, { context, usage: USAGE_TEXT }), context, 0);
+    const handle = await ctx.workspace();
+    return result("labels", await (await ctx.client()).getWorkspaceLabels(handle));
+}
+var commands10 = {
+    labels: { usage: USAGE_TEXT, run: runLabels }
+};
+var usage_exports = {};
+__export(usage_exports, {
+    commands: () => commands11,
+    formatUsage: () => formatUsage
+});
+var USAGE_TEXT2 = buildUsage({
     synopsis: ["handout usage"],
     description: "Shows your account's documents against its limit across all your workspaces, then storage per workspace and per document, biggest documents first.",
     examples: ["handout usage", "handout usage --json"]
@@ -27941,14 +28217,14 @@ function formatUsage(usage) {
 }
 async function runUsage(ctx) {
     const context = "on handout usage";
-    expectPositionals(scanArgs(ctx.args, { context, usage: USAGE_TEXT }), context, 0);
+    expectPositionals(scanArgs(ctx.args, { context, usage: USAGE_TEXT2 }), context, 0);
     if (ctx.global.workspace !== void 0)
         throw usageError(WORKSPACE_REFUSED);
     return result("usage", await (await ctx.client()).getUsage());
 }
 registerOutput("usage", { json: (data) => data, text: formatUsage });
-var commands10 = {
-    usage: { usage: USAGE_TEXT, run: runUsage }
+var commands11 = {
+    usage: { usage: USAGE_TEXT2, run: runUsage }
 };
 var skill_exports = {};
 __export(skill_exports, {
@@ -27956,7 +28232,7 @@ __export(skill_exports, {
     SKILL_AGENTS: () => SKILL_AGENTS,
     SKILL_FOLDER: () => SKILL_FOLDER,
     agentSkillsDir: () => agentSkillsDir,
-    commands: () => commands11,
+    commands: () => commands12,
     packagedSkillPath: () => packagedSkillPath
 });
 import { randomBytes as randomBytes3 } from "node:crypto";
@@ -27993,7 +28269,7 @@ function packagedSkillPath(env, moduleUrl = import.meta.url) {
     if (override !== void 0 && override !== "")
         return resolve(override);
     const here = dirname2(fileURLToPath(moduleUrl));
-    const bundled = "1.3.0".length > 0;
+    const bundled = "1.4.0".length > 0;
     return bundled ? join4(here, "SKILL.md") : join4(here, "..", "..", "SKILL.md");
 }
 var INSTALL_USAGE = buildUsage({
@@ -28129,7 +28405,7 @@ ${INSTALL_USAGE}`);
     };
     return result("skill-install", data);
 }
-var commands11 = {
+var commands12 = {
     "skill install": { usage: INSTALL_USAGE, run: runSkillInstall }
 };
 import { realpathSync } from "node:fs";
@@ -28281,6 +28557,7 @@ var COMMAND_TREE = {
     acks: { modules: ["documents", "manage"], summary: "Show who acknowledged a document" },
     list: { modules: ["documents"], summary: "List your documents" },
     get: { modules: ["documents"], summary: "Show a document's details" },
+    labels: { modules: ["labels"], summary: "Show the suggested labels and how often each is used" },
     search: { modules: ["documents"], summary: "Search your documents" },
     source: { modules: ["documents"], summary: "Download a document's source" },
     open: { modules: ["documents"], summary: "Print (or open) a document's link" },
@@ -28362,14 +28639,14 @@ var COMMAND_TREE = {
     help: { modules: [], summary: "Show help for a command" }
 };
 function buildGlobalUsage() {
-    const rows = GLOBAL_FLAGS.map((f) => [
+    const rows2 = GLOBAL_FLAGS.map((f) => [
         `${f.alias === void 0 ? "" : `${f.alias}, `}${f.flag}${f.value === void 0 ? "" : ` ${f.value}`}`,
         f.description
     ]);
-    rows.push(["--version", "Print the CLI version"]);
-    const width = Math.max(...rows.map(([label]) => label.length));
+    rows2.push(["--version", "Print the CLI version"]);
+    const width = Math.max(...rows2.map(([label]) => label.length));
     const lines = ["Usage: handout <command> [subcommand] [args] [flags]", "", "Global flags:"];
-    for (const [label, description] of rows)
+    for (const [label, description] of rows2)
         lines.push(`  ${label.padEnd(width)}  ${description}`);
     lines.push("", "Commands:");
     const names = Object.entries(COMMAND_TREE).filter(([, entry]) => entry.deferred !== true);
@@ -28414,6 +28691,8 @@ async function importModule(name) {
             return Promise.resolve(auth_exports);
         case "library":
             return Promise.resolve(library_exports);
+        case "labels":
+            return Promise.resolve(labels_exports);
         case "usage":
             return Promise.resolve(usage_exports);
         case "skill":
@@ -28579,7 +28858,7 @@ function createContext(command, args, global, host, deps) {
     };
 }
 async function familyUsage(name, entry, deps) {
-    const rows = [];
+    const rows2 = [];
     for (const moduleName of entry.modules) {
         const mod = await loadCommandModule(moduleName, deps);
         if (mod === void 0)
@@ -28588,14 +28867,14 @@ async function familyUsage(name, entry, deps) {
             if (!key.startsWith(`${name} `))
                 continue;
             const first = def.usage.split("\n")[0]?.replace(/^Usage:\s*/, "") ?? key;
-            rows.push(`  ${first}`);
+            rows2.push(`  ${first}`);
         }
     }
     return [
         `Usage: handout ${name} <subcommand> [args] [flags]`,
         "",
         "Subcommands:",
-        ...rows,
+        ...rows2,
         "",
         `Run handout ${name} <subcommand> --help for that subcommand's flags.`
     ].join("\n");

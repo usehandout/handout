@@ -1,7 +1,7 @@
 {
   "exportedFrom": "handout",
-  "version": "1.3.0",
-  "commit": "723f05e2786e32bc48a69fb1712d8a009cdc0a3e",
+  "version": "1.4.0",
+  "commit": "75f58ec7caec30b9df342a85d7512257ea3f9070",
   "files": {
     ".claude-plugin/marketplace.json": "14599730ac3794f0240e22f9e75db4dc9ed8f2c375bed100aa1c13200162db4e",
     ".github/workflows/release.yml": "f6523d52acb6fdfaf3f3e4a65948f2c230940e5a4aa6517ec25f645b90897e7d",
@@ -11,11 +11,11 @@
     "cli/LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
     "cli/NOTICE": "e9ce2a4972ad226eb81f5caa21c773c45fb533bddcfe56c0ea3ae18bf2544dff",
     "cli/README.md": "b841cab39bab12eaef4391da8257da1e8fe790f43011442dec526238d632762f",
-    "cli/SKILL.md": "99a12cafbd87f229fd82e52b08c91cf7fb38a8e027da0bc1c927b9c10a379294",
-    "cli/handout.mjs": "936d496e7115f18b0d4d82975dbb3f9107c1e150993345ec2e33976b98f16e30",
-    "cli/package.json": "6e6ff5a09b8796b1e059c8220b07689129306ed5088c058a4ebcb86bec486a14",
+    "cli/SKILL.md": "070cfc7a2fd4075f31480513aabcfdfc5c7ce77462c216f974980b4b87641fc5",
+    "cli/handout.mjs": "ea76952ec697bcdbbfddc29226a93d0bb1dcb2fbb8b9653e882c8ab3a729d659",
+    "cli/package.json": "28274e2b4a6f6592c39a31f1c66fca6ad548f312830d7d0ff7d798d6e3f11199",
     "cli/test/package.test.mjs": "d34ae01be40537e60caf2f6a51490c9a29f8b4089f29fe63bb53f9d5a997bb45",
-    "plugins/handout/.claude-plugin/plugin.json": "101debb4e356109ea52a5180aa8819d7ce5785d817c048ec3fea7495e95c67f0",
-    "plugins/handout/skills/handout/SKILL.md": "99a12cafbd87f229fd82e52b08c91cf7fb38a8e027da0bc1c927b9c10a379294"
+    "plugins/handout/.claude-plugin/plugin.json": "207a694fb46b23db621e54c25fd9824a30acd53ef5d011a1676b3e70dbc610b0",
+    "plugins/handout/skills/handout/SKILL.md": "070cfc7a2fd4075f31480513aabcfdfc5c7ce77462c216f974980b4b87641fc5"
   }
 }
