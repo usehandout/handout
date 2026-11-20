@@ -7,8 +7,9 @@ name: Release
 # stage-only: the version goes live only when a maintainer approves it on npmjs.com with 2FA.
 #
 # The only workflow in this repository. The code was built and fully tested in Handout's
-# development repository before it was exported here; this job re-checks the package it is about
-# to publish and nothing else.
+# development repository before it was exported here; these jobs re-check the package about to be
+# published and nothing else. `keychain-smoke` installs the packed package on macOS, Windows and
+# Linux and round-trips a credential through the real OS keychain; `publish` waits for it.
 
 on:
   push:
@@ -22,7 +23,64 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # npm install of the packed package as a user would (the keychain binding is an optional
+  # dependency, one prebuilt binary per platform), then cli/test/keychain-smoke.mjs: the installed
+  # `handout` moves a file credential into the OS keychain and logout removes it. No secrets and no
+  # id-token: this job never publishes.
+  keychain-smoke:
+    name: Keychain smoke (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "24"
+
+      - name: Install the packed package
+        shell: bash
+        run: |
+          set -euo pipefail
+          tarball="$(cd cli && npm pack --silent)"
+          mkdir "$RUNNER_TEMP/install"
+          cd "$RUNNER_TEMP/install"
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund "$GITHUB_WORKSPACE/cli/$tarball"
+
+      # Linux has no Secret Service on a runner: gnome-keyring on a private session bus, unlocked
+      # with a throwaway password.
+      - name: Install a Secret Service (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends gnome-keyring dbus
+
+      - name: Keychain round trip
+        shell: bash
+        env:
+          HANDOUT_KEYCHAIN_SMOKE: "1"
+        run: |
+          set -euo pipefail
+          pkg="$RUNNER_TEMP/install/node_modules/@usehandout/cli"
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            dbus-run-session -- bash -c 'printf dev-only-keyring | gnome-keyring-daemon --unlock --components=secrets > /dev/null && node cli/test/keychain-smoke.mjs "$1"' _ "$pkg"
+          else
+            node cli/test/keychain-smoke.mjs "$pkg"
+          fi
+
   publish:
+    needs: keychain-smoke
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment: npm

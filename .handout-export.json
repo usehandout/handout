@@ -1,21 +1,24 @@
 {
   "exportedFrom": "handout",
-  "version": "1.5.0",
-  "commit": "33470c9ab456cf216e953280f7fafa6c1b3c5b74",
+  "version": "1.6.0",
+  "commit": "b7b02fd4ad1b028d5bd47cfd3586cebf3bbe74a3",
   "files": {
     ".claude-plugin/marketplace.json": "14599730ac3794f0240e22f9e75db4dc9ed8f2c375bed100aa1c13200162db4e",
-    ".github/workflows/release.yml": "f6523d52acb6fdfaf3f3e4a65948f2c230940e5a4aa6517ec25f645b90897e7d",
+    ".github/workflows/release.yml": "438cfda2c9e9d3a5c210987e8833a8c1c9dc80a64594aa3d01554ae448f9f29c",
     "LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
     "NOTICE": "e9ce2a4972ad226eb81f5caa21c773c45fb533bddcfe56c0ea3ae18bf2544dff",
-    "README.md": "ca8d8ef9036d1d77236700a44f9e5cf24641db21f81dd2ea7890b76f36f18d94",
+    "README.md": "d2eb91ed081f7a543984f8dd98911ae9beb0285091d1e7fd78967e8558f42b4c",
     "cli/LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
     "cli/NOTICE": "e9ce2a4972ad226eb81f5caa21c773c45fb533bddcfe56c0ea3ae18bf2544dff",
-    "cli/README.md": "b841cab39bab12eaef4391da8257da1e8fe790f43011442dec526238d632762f",
-    "cli/SKILL.md": "1664d979c31089122b4e19d3b742e4a4079f0b50bb0006f0d5f34e4b1e369388",
-    "cli/handout.mjs": "1b19d78d4b0d63f470cd470b2f9f89f991afbf5f4905e10fe7e4fa884c6e65b9",
-    "cli/package.json": "faf1ad1c39062c9913382e50b17f9fafb00fbe3f454baa33a81c9e4aaa4d1e31",
-    "cli/test/package.test.mjs": "d34ae01be40537e60caf2f6a51490c9a29f8b4089f29fe63bb53f9d5a997bb45",
-    "plugins/handout/.claude-plugin/plugin.json": "759bf5a363d913a42c9ec8667d9a5b9ca45f5e2a7e71faee4cbd0e715f30e8fb",
-    "plugins/handout/skills/handout/SKILL.md": "1664d979c31089122b4e19d3b742e4a4079f0b50bb0006f0d5f34e4b1e369388"
+    "cli/README.md": "f57a6e453ac8fa8195fc4ea06a485392ec057ce5a2bf274b309dc58658848181",
+    "cli/SKILL.md": "26b9185d82bd186a5303f51746c900cf242cee267af717b2d4dd7105552e1687",
+    "cli/handout.mjs": "796acea91fd6dc7aef4bac2c45e6a744576a5c2f4147afb23e6a72aed65ce427",
+    "cli/package.json": "616c1e3021872d468089b3cf070f96d4875e37424a74810b1d8037164c035f36",
+    "cli/setup/SKILL.md": "c67cd28bf6ccbcc3432861bed10f1218826b81190df7af1b297aed274bde381e",
+    "cli/test/keychain-smoke.mjs": "8318cae7d77897f55bf12c0953ce686340bbc08fb0b0ab2f2653605a88a19743",
+    "cli/test/package.test.mjs": "4c5cc9975da694cdbf01b7bf7c812fb818d8da3d0a8627201cdcf3763c852b6d",
+    "plugins/handout/.claude-plugin/plugin.json": "13ebcdeb2f400dc14de49a7320dddc190b9772be437877359bd991348542a13a",
+    "plugins/handout/skills/handout/SKILL.md": "26b9185d82bd186a5303f51746c900cf242cee267af717b2d4dd7105552e1687",
+    "plugins/handout/skills/setup/SKILL.md": "1b4d4b8acb35925cff8af44e9ec30c1a874679f9f168cdd88c8301ebdd383d95"
   }
 }

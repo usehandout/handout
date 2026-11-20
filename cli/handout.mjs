@@ -5120,7 +5120,7 @@ var recursive = new WeakMap();
 var NONE = 0;
 var ASSUMED = 1;
 var PROVEN = 2;
-function isRecursive(inst, stack, resolve2) {
+function isRecursive(inst, stack, resolve3) {
     const cached2 = recursive.get(inst);
     if (cached2 !== void 0)
         return cached2 ? PROVEN : NONE;
@@ -5130,7 +5130,7 @@ function isRecursive(inst, stack, resolve2) {
     let result2 = NONE;
     const check2 = (child) => {
         if (result2 !== PROVEN && child?._zod) {
-            const answer = isRecursive(child, stack, resolve2);
+            const answer = isRecursive(child, stack, resolve3);
             if (answer > result2)
                 result2 = answer;
         }
@@ -5141,7 +5141,7 @@ function isRecursive(inst, stack, resolve2) {
             const desc = Object.getOwnPropertyDescriptor(sh, key);
             if (spread && !desc.enumerable)
                 continue;
-            const child = desc.get ? ASSUMED : desc.value?._zod ? isRecursive(desc.value, stack, resolve2) : NONE;
+            const child = desc.get ? ASSUMED : desc.value?._zod ? isRecursive(desc.value, stack, resolve3) : NONE;
             if (child > answer)
                 answer = child;
         }
@@ -5204,7 +5204,7 @@ function isRecursive(inst, stack, resolve2) {
             check2(def.output);
             break;
         case "lazy": {
-            const inner = def._cachedInner ?? (resolve2 ? inst._zod.innerType : void 0);
+            const inner = def._cachedInner ?? (resolve3 ? inst._zod.innerType : void 0);
             merge2(inner ? isRecursive(inner, stack, false) : ASSUMED);
             break;
         }
@@ -19652,7 +19652,6 @@ var ReportAppeal = external_exports.object({
     statement: external_exports.string().max(APPEAL_STATEMENT_MAX_LENGTH).optional(),
     counterNotice: CounterNotice.optional(),
     dueAt: external_exports.string().optional(),
-    escalatedAt: external_exports.string().optional(),
     forwardedAt: external_exports.string().optional(),
     forwardedBy: external_exports.string().optional(),
     restoreAfter: external_exports.string().optional(),
@@ -19689,14 +19688,13 @@ var ReportRecord = external_exports.object({
     receiptTo: external_exports.string().optional(),
     acknowledgedAt: external_exports.string().optional(),
     acknowledgedBy: external_exports.string().optional(),
-    ackEscalatedAt: external_exports.string().optional(),
-    overdueEscalatedAt: external_exports.string().optional(),
     evidence: external_exports.array(EvidenceItem).optional(),
     appeal: ReportAppeal.optional()
 }).refine((report) => report.targetType === "url" ? report.submittedUrl !== void 0 && report.documentId === void 0 && report.collectionId === void 0 : report.workspaceId !== void 0 && (report.targetType === "document" ? report.documentId !== void 0 && report.collectionId === void 0 : report.collectionId !== void 0 && report.documentId === void 0), {
     message: "A report names exactly one target: documentId for a document, collectionId for a collection."
 });
 var ContentType = external_exports.enum(["html", "markdown", "pdf"]);
+var DefaultFormat = ContentType;
 function isBinaryContentType(contentType) {
     return contentType === "pdf";
 }
@@ -19772,7 +19770,32 @@ var MAX_LABELS_PER_DOCUMENT = 10;
 var MAX_LABELS_MESSAGE = "A document can have at most 10 labels.";
 var MAX_SUGGESTED_LABELS = 30;
 var MAX_SUGGESTED_LABELS_MESSAGE = `A workspace can have at most ${MAX_SUGGESTED_LABELS} suggested labels.`;
+var SEED_SUGGESTED_LABELS = [
+    "plan",
+    "spec",
+    "report",
+    "review",
+    "guide",
+    "notes",
+    "proposal",
+    "prototype"
+];
 var SuggestedLabels = external_exports.array(DocumentLabel).max(MAX_SUGGESTED_LABELS, MAX_SUGGESTED_LABELS_MESSAGE);
+function normalizeSuggestedLabels(labels) {
+    const seen = new Set();
+    const result2 = [];
+    for (const label of labels) {
+        const trimmed = label.trim();
+        if (trimmed === "")
+            continue;
+        const key = trimmed.toLowerCase();
+        if (seen.has(key))
+            continue;
+        seen.add(key);
+        result2.push(trimmed);
+    }
+    return result2;
+}
 var PASSWORD_MIN_LENGTH = 4;
 var PASSWORD_MAX_LENGTH = 128;
 var TITLE_MAX_LENGTH = 512;
@@ -19803,13 +19826,6 @@ function documentUrl(appHost, handle, slug) {
 }
 var ULID_BODY = ULID_PATTERN.source.slice(1, -1);
 var DOCUMENT_OBJECT_PREFIX = new RegExp(`^documents/${ULID_BODY}/${ULID_BODY}/$`);
-var ApprovalMode = external_exports.enum(["none", "owner"]);
-var EditLease = external_exports.strictObject({
-    holderUid: external_exports.string(),
-    holderEmail: external_exports.string(),
-    acquiredAt: external_exports.string(),
-    expiresAt: external_exports.string()
-});
 var DocumentRecord = external_exports.object({
     id: Ulid,
     workspaceId: Ulid,
@@ -19819,8 +19835,6 @@ var DocumentRecord = external_exports.object({
     contentType: ContentType,
     exposure: Exposure,
     allowlist: external_exports.array(external_exports.string()).optional(),
-    approvalMode: ApprovalMode.optional(),
-    editLease: EditLease.optional(),
     unlisted: external_exports.boolean().optional(),
     publicDirectory: external_exports.boolean().optional(),
     objectKey: external_exports.string(),
@@ -19974,6 +19988,7 @@ var AckRecord = external_exports.object({
 });
 var FollowCadence = external_exports.enum(["immediate", "daily", "weekly"]);
 var Theme = external_exports.enum(["system", "light", "dark"]);
+var DEFAULT_UNLISTED = true;
 var ONBOARDING_LAST_STEP = 4;
 var PreferencesRecord = external_exports.object({
     uid: external_exports.string(),
@@ -19999,7 +20014,7 @@ var PreferencesRecord = external_exports.object({
     defaultNotifyOnView: external_exports.boolean().optional(),
     defaultRequestAcknowledgment: external_exports.boolean().optional(),
     defaultCommentsEnabled: external_exports.boolean().optional(),
-    defaultApprovalMode: ApprovalMode.optional(),
+    defaultFormat: DefaultFormat.optional(),
     onboardedWorkspaceIds: external_exports.array(Ulid).optional(),
     onboardingStep: external_exports.number().int().min(0).max(ONBOARDING_LAST_STEP).optional(),
     cliConnectedAt: external_exports.string().optional(),
@@ -20011,6 +20026,7 @@ var PreferencesRecord = external_exports.object({
     suspendedReason: external_exports.string().nullable().default(null),
     planGrant: external_exports.enum(["friends", "internal"]).optional(),
     planGrantReason: external_exports.string().optional(),
+    planGrantedAt: external_exports.string().optional(),
     billingPlan: external_exports.literal("plus").optional(),
     stripeCustomerId: external_exports.string().optional(),
     stripeSubscriptionId: external_exports.string().optional(),
@@ -20541,8 +20557,8 @@ var CreateDocumentRequest = external_exports.object({
     interactiveConnectSrc: ConnectSrc.optional(),
     originalFilename: external_exports.string().max(ORIGINAL_FILENAME_MAX_LENGTH).optional(),
     retainVersions: external_exports.number().int().min(1).optional(),
-    commentsEnabled: external_exports.boolean().optional(),
-    approvalMode: ApprovalMode.optional()
+    collection: SlugRef.nullable().optional(),
+    commentsEnabled: external_exports.boolean().optional()
 });
 var HtmlLintCode = external_exports.enum([
     "stripped-tag",
@@ -20568,7 +20584,8 @@ var CreateDocumentResponse = external_exports.object({
     version: external_exports.literal(1),
     invitesSent: external_exports.array(external_exports.string()).optional(),
     invitesFailed: external_exports.array(external_exports.string()).optional(),
-    warnings: external_exports.array(HtmlLintWarning).optional()
+    warnings: external_exports.array(HtmlLintWarning).optional(),
+    collectionAdded: external_exports.literal(false).optional()
 });
 var DocumentCollectionRef = external_exports.object({ slug: external_exports.string(), name: external_exports.string() });
 var ListDocumentsItem = external_exports.object({
@@ -20639,7 +20656,6 @@ var SharedWithMeResponse = page(SharedDocumentItem);
 var EditAwareness = external_exports.object({
     currentVersion: external_exports.number().int().min(1),
     lastEditorEmail: external_exports.string().optional(),
-    lease: EditLease.optional(),
     pendingProposals: external_exports.number().int().nonnegative()
 });
 var OwnerDocumentResponse = DocumentRecord.omit({
@@ -20678,8 +20694,7 @@ var PatchDocumentRequest = external_exports.object({
     interactive: external_exports.boolean().optional(),
     interactiveConnectSrc: ConnectSrc.optional(),
     retainVersions: external_exports.number().int().min(1).nullable().optional(),
-    commentsEnabled: external_exports.boolean().optional(),
-    approvalMode: ApprovalMode.optional()
+    commentsEnabled: external_exports.boolean().optional()
 });
 var PublishVersionRequest = external_exports.object({
     title: external_exports.string().max(TITLE_MAX_LENGTH).optional(),
@@ -21301,18 +21316,12 @@ var RejectProposalResponse = external_exports.object({
     proposalId: Ulid,
     status: ProposalStatus
 });
-var EditLeaseResponse = external_exports.object({
-    id: Ulid,
-    slug: external_exports.string(),
-    lease: EditLease.optional()
-});
 var EditContextResponse = external_exports.object({
     id: Ulid,
     slug: external_exports.string(),
     canEdit: external_exports.boolean(),
     isOwner: external_exports.boolean(),
     needsApproval: external_exports.boolean(),
-    approvalMode: ApprovalMode,
     awareness: EditAwareness
 });
 var SettingsResponse = external_exports.object({
@@ -21330,11 +21339,26 @@ var SettingsResponse = external_exports.object({
     defaultRequestAcknowledgment: external_exports.boolean().optional(),
     weeklyDigest: external_exports.boolean().optional(),
     defaultCommentsEnabled: external_exports.boolean().optional(),
-    defaultApprovalMode: ApprovalMode.optional(),
+    defaultFormat: DefaultFormat.optional(),
     onboardedWorkspaceIds: external_exports.array(Ulid).optional(),
     onboardingStep: external_exports.number().int().min(0).max(ONBOARDING_LAST_STEP).optional(),
     keepReadingHistory: external_exports.boolean().optional()
 });
+var PUBLISHING_DEFAULT_KEYS = [
+    "defaultWorkspaceId",
+    "defaultFormat",
+    "defaultExposure",
+    "defaultUnlisted",
+    "defaultCollectionSlug",
+    "defaultLabels",
+    "defaultAllowSourceDownload",
+    "defaultNotifyOnView",
+    "defaultRequestAcknowledgment",
+    "defaultCommentsEnabled"
+];
+function hasChosenPublishingDefault(settings) {
+    return PUBLISHING_DEFAULT_KEYS.some((key) => key === "defaultUnlisted" ? settings.defaultUnlisted !== void 0 && settings.defaultUnlisted !== DEFAULT_UNLISTED : settings[key] !== void 0);
+}
 var MeResponse = external_exports.object({
     uid: external_exports.string(),
     email: external_exports.string().nullable(),
@@ -21373,7 +21397,7 @@ var PatchSettingsRequest = external_exports.object({
     defaultRequestAcknowledgment: external_exports.boolean().nullable().optional(),
     weeklyDigest: external_exports.boolean().optional(),
     defaultCommentsEnabled: external_exports.boolean().nullable().optional(),
-    defaultApprovalMode: ApprovalMode.nullable().optional(),
+    defaultFormat: DefaultFormat.nullable().optional(),
     onboardedWorkspaceId: Ulid.optional(),
     onboardingStep: external_exports.number().int().min(0).max(ONBOARDING_LAST_STEP).nullable().optional(),
     keepReadingHistory: external_exports.boolean().optional()
@@ -21730,9 +21754,6 @@ function describeAwareness(awareness) {
     const parts = [`v${awareness.currentVersion}`];
     if (awareness.lastEditorEmail !== void 0)
         parts.push(`last edited by ${awareness.lastEditorEmail}`);
-    if (awareness.lease !== void 0) {
-        parts.push(`lease held by ${awareness.lease.holderEmail} until ${awareness.lease.expiresAt}`);
-    }
     if (awareness.pendingProposals > 0) {
         parts.push(plural2(awareness.pendingProposals, "pending proposal"));
     }
@@ -22067,8 +22088,8 @@ var cachedVersion;
 function bundledVersion() {
     if (cachedVersion !== void 0)
         return cachedVersion;
-    if ("1.5.0".length > 0) {
-        cachedVersion = "1.5.0";
+    if ("1.6.0".length > 0) {
+        cachedVersion = "1.6.0";
         return cachedVersion;
     }
     try {
@@ -22233,18 +22254,17 @@ async function readLocalConfig(env = process.env) {
     const config2 = {};
     if (typeof record2["host"] === "string" && record2["host"].trim() !== "")
         config2.host = record2["host"];
-    if (typeof record2["defaultWorkspace"] === "string" && record2["defaultWorkspace"] !== "") {
-        config2.defaultWorkspace = record2["defaultWorkspace"];
-    }
-    if (record2["credentials"] === "file" || record2["credentials"] === "keychain") {
-        config2.credentials = record2["credentials"];
-    }
+    if (record2["noKeychain"] === true)
+        config2.noKeychain = true;
+    if (record2["setupTipShown"] === true)
+        config2.setupTipShown = true;
     return config2;
 }
+var LOCAL_CONFIG_KEYS = ["host", "noKeychain", "setupTipShown"];
 async function writeLocalConfig(patch, env = process.env) {
     const current = await readLocalConfig(env);
     const merged = { ...current };
-    for (const key of ["host", "defaultWorkspace", "credentials"]) {
+    for (const key of LOCAL_CONFIG_KEYS) {
         if (!(key in patch))
             continue;
         const value = patch[key];
@@ -22264,6 +22284,21 @@ async function writeLocalConfig(patch, env = process.env) {
         throw configError(`Could not write ${localConfigPath(env)}: ${errorMessage(err)}.`, err);
     }
     return out;
+}
+async function pruneLocalConfig(env = process.env) {
+    let parsed;
+    try {
+        parsed = JSON.parse(await readFile2(localConfigPath(env), "utf8"));
+    }
+    catch {
+        return;
+    }
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
+        return;
+    const known = ["v", ...LOCAL_CONFIG_KEYS];
+    if (Object.keys(parsed).every((key) => known.includes(key)))
+        return;
+    await writeLocalConfig({}, env);
 }
 function isErrno(err, code) {
     return typeof err === "object" && err !== null && "code" in err && err.code === code;
@@ -22319,7 +22354,7 @@ var FLAG_HOME = {
     "--since": "handout library --recent",
     "--cadence": "handout follow",
     "--keep": "handout versions prune",
-    "--out": "handout source, versions source, proposals source or read",
+    "--out": "handout source, versions source or read",
     "--browser": "handout open",
     "--name": "handout collections create/update or workspaces create/update (a document's own name is --title)",
     "--description": "handout collections create or update",
@@ -22363,7 +22398,6 @@ var VALUE_FLAGS = new Set([
     "--retain-versions",
     "--expected-version",
     "--diff-summary",
-    "--approval-mode",
     "--connect-src",
     "--idempotency-key",
     "--message",
@@ -22533,8 +22567,6 @@ async function resolveWorkspaceHandle(input2) {
     const fromEnv = input2.env["HANDOUT_WORKSPACE"]?.trim();
     if (fromEnv !== void 0 && fromEnv !== "")
         return parseWorkspaceHandle(fromEnv);
-    if (input2.localDefault !== void 0 && input2.localDefault !== "")
-        return input2.localDefault;
     const me = await input2.getMe();
     const defaultId = me.settings.defaultWorkspaceId;
     if (defaultId !== void 0) {
@@ -23261,6 +23293,65 @@ __export(collections_exports, {
 });
 import { readFile as readFile3, rm as rm2, stat as stat2 } from "node:fs/promises";
 import { basename as basename2, join as join3 } from "node:path";
+import { isDeepStrictEqual } from "node:util";
+import { connect } from "node:net";
+var BUS_TIMEOUT_MS = 500;
+function busSocketPath(address) {
+    if (address === void 0 || address === "")
+        return void 0;
+    for (const entry of address.split(";")) {
+        if (!entry.startsWith("unix:"))
+            continue;
+        const params = new Map();
+        for (const pair2 of entry.slice("unix:".length).split(",")) {
+            const eq = pair2.indexOf("=");
+            if (eq > 0)
+                params.set(pair2.slice(0, eq), unescapeValue(pair2.slice(eq + 1)));
+        }
+        const path = params.get("path");
+        if (path !== void 0 && path !== "")
+            return path;
+        const abstract = params.get("abstract");
+        if (abstract !== void 0 && abstract !== "")
+            return `\0${abstract}`;
+    }
+    return void 0;
+}
+function unescapeValue(value) {
+    return value.replace(/%([0-9a-fA-F]{2})/g, (_, hex3) => String.fromCharCode(parseInt(hex3, 16)));
+}
+async function sessionBusResponds(env, timeoutMs = BUS_TIMEOUT_MS) {
+    const path = busSocketPath(env["DBUS_SESSION_BUS_ADDRESS"]);
+    if (path === void 0)
+        return false;
+    const uid = String(process.getuid?.() ?? 0);
+    const hexUid = Buffer.from(uid, "ascii").toString("hex");
+    return new Promise((resolve3) => {
+        let settled = false;
+        const socket = connect({ path });
+        const finish = (answer) => {
+            if (settled)
+                return;
+            settled = true;
+            clearTimeout(timer);
+            socket.destroy();
+            resolve3(answer);
+        };
+        const timer = setTimeout(() => finish(false), timeoutMs);
+        socket.on("connect", () => {
+            socket.write(`\0AUTH EXTERNAL ${hexUid}\r
+`);
+        });
+        let reply = "";
+        socket.on("data", (chunk) => {
+            reply += chunk.toString("ascii");
+            if (reply.includes("\n"))
+                finish(/^(OK|REJECTED)\b/.test(reply));
+        });
+        socket.on("error", () => finish(false));
+        socket.on("close", () => finish(false));
+    });
+}
 function parseCredential(text) {
     let value;
     try {
@@ -23296,20 +23387,28 @@ var loadKeyring = async () => {
     }
 };
 var KEYCHAIN_SERVICE = "handout";
+var WINDOWS_SECRET_LIMIT = 2560;
+var ENTRY_OPTIONS = { linux: { store: "secret-service" } };
 var KeychainStore = class {
-    constructor(host, keyring) {
+    constructor(host, keyring, platform = process.platform, service = KEYCHAIN_SERVICE) {
         this.host = host;
         this.keyring = keyring;
+        this.platform = platform;
+        this.service = service;
     }
     host;
     keyring;
+    platform;
+    service;
     kind = "keychain";
+    cachedEntry;
     entry() {
-        return new this.keyring.Entry(KEYCHAIN_SERVICE, this.host);
+        this.cachedEntry ??= new this.keyring.Entry(this.service, this.host, ENTRY_OPTIONS);
+        return this.cachedEntry;
     }
     probe() {
         try {
-            this.entry().getPassword();
+            this.entry().getSecret();
             return true;
         }
         catch {
@@ -23318,25 +23417,55 @@ var KeychainStore = class {
     }
     async read() {
         try {
-            const secret = this.entry().getPassword();
-            return secret === null ? void 0 : parseCredential(secret);
+            const secret = this.entry().getSecret();
+            return secret === null ? void 0 : parseCredential(Buffer.from(secret).toString("utf8"));
         }
         catch {
             return void 0;
         }
     }
-    async write(credential) {
-        this.entry().setPassword(JSON.stringify(credential));
+    stored(credential) {
+        if (this.platform === "win32" && Buffer.byteLength(JSON.stringify(credential), "utf8") > WINDOWS_SECRET_LIMIT) {
+            return { ...credential, idToken: "", idTokenExpiresAt: 0 };
+        }
+        return credential;
     }
-    async delete() {
+    async write(credential) {
+        this.entry().setSecret(Buffer.from(JSON.stringify(this.stored(credential)), "utf8"));
+    }
+    async writeVerified(credential) {
         try {
-            return this.entry().deleteCredential();
+            await this.write(credential);
         }
         catch {
             return false;
         }
+        return isDeepStrictEqual(await this.read(), this.stored(credential));
+    }
+    async delete() {
+        let deleted;
+        try {
+            deleted = this.entry().deleteCredential();
+        }
+        catch (err) {
+            throw keychainDeleteError(err);
+        }
+        let remaining;
+        try {
+            remaining = this.entry().getSecret();
+        }
+        catch (err) {
+            throw keychainDeleteError(err);
+        }
+        if (remaining !== null)
+            throw keychainDeleteError(void 0);
+        return deleted;
     }
 };
+function keychainDeleteError(cause) {
+    const reason = cause === void 0 ? "it is still there" : errorMessage(cause);
+    return new CliError(`Could not remove your Handout login from the system keychain (${reason}). Remove the "${KEYCHAIN_SERVICE}" entry in your keychain app.`, { exitCode: 1, code: "file", cause });
+}
 var FileStore = class {
     constructor(host, env, platform = process.platform) {
         this.platform = platform;
@@ -23428,11 +23557,13 @@ var EnvStore = class {
         });
     }
 };
+var MIGRATION_NOTICE = "Your Handout login moved to the system keychain. To keep it in a file instead, run handout login --no-keychain.";
 var HostCredentials = class {
     constructor(host, options) {
         this.host = host;
         this.options = options;
-        this.fileStore = new FileStore(host, options.env, options.platform);
+        this.platform = options.platform ?? process.platform;
+        this.fileStore = new FileStore(host, options.env, this.platform);
         this.envStore = EnvStore.isActive(options.env) ? new EnvStore(host, options.env, options.fallbackApiKey) : void 0;
     }
     host;
@@ -23440,46 +23571,78 @@ var HostCredentials = class {
     keychainPromise;
     fileStore;
     envStore;
+    platform;
+    source;
     writtenTo;
     get kind() {
         if (this.envStore !== void 0)
             return "env";
-        return this.writtenTo ?? "file";
+        return this.writtenTo ?? this.source ?? "file";
     }
-    keychainDisabled() {
-        return this.options.noKeychain === true || this.options.env["HANDOUT_NO_KEYCHAIN"] === "1";
+    get filePath() {
+        return this.fileStore.path;
     }
-    keychain() {
-        if (this.keychainDisabled())
+    get keychainDisabled() {
+        return this.options.noKeychain === true || this.options.env["HANDOUT_NO_KEYCHAIN"] === "1" || this.options.localConfig?.noKeychain === true;
+    }
+    reachableKeychain() {
+        if (this.options.env["HANDOUT_NO_KEYCHAIN"] === "1")
             return Promise.resolve(void 0);
         this.keychainPromise ??= (async () => {
+            if (this.platform !== "win32" && this.platform !== "darwin") {
+                const busCheck = this.options.busCheck ?? sessionBusResponds;
+                if (!await busCheck(this.options.env))
+                    return void 0;
+            }
             const keyring = await (this.options.loadKeyring ?? loadKeyring)();
             if (keyring === void 0)
                 return void 0;
-            const store = new KeychainStore(this.host, keyring);
+            const store = new KeychainStore(this.host, keyring, this.platform, this.options.keychainService);
             return store.probe() ? store : void 0;
         })();
         return this.keychainPromise;
     }
+    keychain() {
+        return this.keychainDisabled ? Promise.resolve(void 0) : this.reachableKeychain();
+    }
     async read() {
         if (this.envStore !== void 0)
             return this.envStore.read();
-        const configured = this.options.localConfig?.credentials;
-        const order = configured === "file" ? ["file", "keychain"] : ["keychain", "file"];
-        for (const kind of order) {
-            if (kind === "keychain") {
-                const keychain = await this.keychain();
-                const found = await keychain?.read();
-                if (found !== void 0)
-                    return found;
+        const keychain = await this.keychain();
+        const fromFile = await this.fileStore.read();
+        if (fromFile !== void 0) {
+            this.source = "file";
+            if (keychain !== void 0 && await this.migrate(keychain, fromFile)) {
+                this.source = "keychain";
             }
-            else {
-                const found = await this.fileStore.read();
-                if (found !== void 0)
-                    return found;
-            }
+            return fromFile;
         }
-        return void 0;
+        const fromKeychain = await keychain?.read();
+        if (fromKeychain === void 0)
+            return void 0;
+        this.source = "keychain";
+        return fromKeychain;
+    }
+    async migrate(keychain, credential) {
+        const firstMove = await keychain.read() === void 0;
+        if (!await keychain.writeVerified(credential))
+            return false;
+        let removed;
+        try {
+            removed = await this.fileStore.delete();
+        }
+        catch {
+            if (!firstMove)
+                return true;
+            if (await this.fileStore.read().catch(() => credential) === void 0)
+                return true;
+            await keychain.delete().catch(() => false);
+            return false;
+        }
+        if (removed && firstMove)
+            this.options.onNotice?.(MIGRATION_NOTICE);
+        await pruneLocalConfig(this.options.env).catch(() => void 0);
+        return true;
     }
     async write(credential) {
         if (this.envStore !== void 0) {
@@ -23487,27 +23650,41 @@ var HostCredentials = class {
             this.writtenTo = "env";
             return;
         }
-        const keychain = this.options.localConfig?.credentials === "file" && this.options.noKeychain !== true ? void 0 : await this.keychain();
-        if (keychain !== void 0) {
-            try {
-                await keychain.write(credential);
+        if (this.source === void 0)
+            return this.replace(credential);
+        if (this.source === "keychain") {
+            const keychain = await this.keychain();
+            if (keychain !== void 0 && await keychain.writeVerified(credential)) {
                 this.writtenTo = "keychain";
                 return;
-            }
-            catch {
             }
         }
         await this.fileStore.write(credential);
         this.writtenTo = "file";
     }
+    async replace(credential) {
+        if (this.envStore !== void 0) {
+            await this.envStore.write(credential);
+            this.writtenTo = "env";
+            return;
+        }
+        const keychain = await this.keychain();
+        if (keychain !== void 0 && await keychain.writeVerified(credential)) {
+            this.writtenTo = "keychain";
+            await this.fileStore.delete().catch(() => false);
+            return;
+        }
+        await this.fileStore.write(credential);
+        this.writtenTo = "file";
+        const stale = await this.reachableKeychain();
+        await stale?.delete().catch(() => false);
+    }
     async delete() {
         if (this.envStore !== void 0)
             return this.envStore.delete();
-        let deleted = false;
-        const keychain = await this.keychain();
+        let deleted = await this.fileStore.delete();
+        const keychain = await this.reachableKeychain();
         if (keychain !== void 0 && await keychain.delete())
-            deleted = true;
-        if (await this.fileStore.delete())
             deleted = true;
         return deleted;
     }
@@ -23604,7 +23781,8 @@ function createTokenSource(options) {
             fallbackApiKey: options.config.firebase.apiKey,
             ...options.noKeychain === void 0 ? {} : { noKeychain: options.noKeychain },
             ...options.loadKeyring === void 0 ? {} : { loadKeyring: options.loadKeyring },
-            ...options.platform === void 0 ? {} : { platform: options.platform }
+            ...options.platform === void 0 ? {} : { platform: options.platform },
+            ...options.onNotice === void 0 ? {} : { onNotice: options.onNotice }
         });
         store = opened;
         return opened;
@@ -23839,7 +24017,7 @@ function isTimeout(err) {
 }
 function createClient(options) {
     const fetchImpl = options.fetchImpl ?? fetch;
-    const sleep = options.sleep ?? ((ms) => new Promise((resolve2) => setTimeout(resolve2, ms)));
+    const sleep = options.sleep ?? ((ms) => new Promise((resolve3) => setTimeout(resolve3, ms)));
     const ua = options.userAgent ?? userAgent();
     const apiBase = options.apiBase.replace(/\/+$/, "");
     async function perform(spec, token, requestId) {
@@ -24314,18 +24492,6 @@ function createClient(options) {
             schema: RejectProposalResponse,
             context: ws(handle, slug, "proposal")
         }),
-        claimLease: (handle, slug) => call({
-            method: "PUT",
-            path: doc(handle, slug, "/lease"),
-            schema: EditLeaseResponse,
-            context: ws(handle, slug)
-        }),
-        releaseLease: (handle, slug) => call({
-            method: "DELETE",
-            path: doc(handle, slug, "/lease"),
-            schema: EditLeaseResponse,
-            context: ws(handle, slug)
-        }),
         listComments: (handle, slug, extras) => call({
             method: "GET",
             path: pub(handle, slug, "/comments"),
@@ -24398,7 +24564,8 @@ async function resolveContext(options) {
             env: options.env,
             fetchImpl,
             ...options.now === void 0 ? {} : { now: options.now },
-            ...options.noKeychain === void 0 ? {} : { noKeychain: options.noKeychain }
+            ...options.noKeychain === void 0 ? {} : { noKeychain: options.noKeychain },
+            ...options.onNotice === void 0 ? {} : { onNotice: options.onNotice }
         });
     }
     const client = createClient({
@@ -24409,6 +24576,24 @@ async function resolveContext(options) {
         ...options.sleep === void 0 ? {} : { sleep: options.sleep }
     });
     return { host: options.host, apiBase, config: config2, getToken, fetchImpl, client };
+}
+function reorderExactly(current, requested, spec) {
+    const fold = spec.fold ?? ((name) => name);
+    const byKey = new Map(current.map((item) => [fold(spec.nameOf(item)), item]));
+    const seen = new Set();
+    const repeated = [];
+    for (const name of requested) {
+        if (seen.has(fold(name)))
+            repeated.push(name);
+        seen.add(fold(name));
+    }
+    const missing = current.filter((item) => !seen.has(fold(spec.nameOf(item)))).map(spec.nameOf);
+    const unknown2 = [...new Set(requested.filter((name) => !byKey.has(fold(name))))];
+    if (missing.length > 0 || unknown2.length > 0 || repeated.length > 0) {
+        const more = repeated.length > 0 ? `; listed more than once: ${[...new Set(repeated)].join(", ")}` : "";
+        throw usageError(`reorder must list every ${spec.noun} exactly once; missing: ${missing.join(", ")}; unknown: ${unknown2.join(", ")}${more}.`);
+    }
+    return requested.map((name) => byKey.get(fold(name)));
 }
 function scanArgs(argv, spec) {
     const valueFlags = new Set(spec.values ?? []);
@@ -24885,21 +25070,8 @@ function applyRemove(current, slugs) {
     };
 }
 function applyReorder(current, slugs) {
-    const bySlug = new Map(current.map((item) => [item.slug, item]));
-    const seen = new Set();
-    const duplicated = [];
-    for (const slug of slugs) {
-        if (seen.has(slug))
-            duplicated.push(slug);
-        seen.add(slug);
-    }
-    const missing = current.filter((item) => !seen.has(item.slug)).map((item) => item.slug);
-    const unknown2 = [...seen].filter((slug) => !bySlug.has(slug));
-    if (missing.length > 0 || unknown2.length > 0 || duplicated.length > 0) {
-        throw usageError(`reorder must list every item exactly once; missing: ${missing.join(", ")}; unknown: ${unknown2.join(", ")}${duplicated.length > 0 ? `; listed more than once: ${[...new Set(duplicated)].join(", ")}` : ""}.`);
-    }
     return {
-        items: slugs.map((slug) => bySlug.get(slug)),
+        items: reorderExactly(current, slugs, { noun: "item", nameOf: (item) => item.slug }),
         added: [],
         removed: [],
         alreadyPresent: [],
@@ -25239,6 +25411,7 @@ function buildCreateRequest(options, target, title) {
     set2("interactiveConnectSrc", options.connectSrc === void 0 ? void 0 : [...options.connectSrc]);
     set2("branding", options.branding);
     set2("retainVersions", options.retainVersions);
+    set2("collection", options.collection);
     const parsed = CreateDocumentRequest.safeParse(body);
     if (!parsed.success)
         throw rejected(parsed.error.issues);
@@ -25345,6 +25518,8 @@ async function publishOne(input2) {
             ...data.invitesFailed === void 0 ? {} : { invitesFailed: data.invitesFailed },
             ...data.warnings === void 0 ? {} : { warnings: data.warnings }
         };
+        if (data.collectionAdded === false)
+            outcome.collectionAdded = false;
         return { outcome, kind: "published" };
     };
     if (options.command === "update") {
@@ -25516,6 +25691,7 @@ async function publishMany(ctx, command, deps = {}) {
     const handle = updateRef?.handle ?? await ctx.workspace();
     const client = await ctx.client();
     const items = [];
+    const updatedSlugs = [];
     for (const [index, target] of targets.entries()) {
         let done;
         try {
@@ -25537,12 +25713,17 @@ async function publishMany(ctx, command, deps = {}) {
         }
         const { outcome, kind } = done;
         items.push(outcome);
+        if (kind === "updated")
+            updatedSlugs.push(outcome.slug);
         reportOutcome(ctx, outcome, kind, targets.length > 1);
+        if (options.collection !== void 0 && outcome.collectionAdded === false) {
+            ctx.warn(`Warning: published, but could not add ${outcome.slug} to collection "${options.collection}".`);
+        }
     }
-    if (options.collection !== void 0) {
+    if (options.collection !== void 0 && updatedSlugs.length > 0) {
         const add = deps.addToCollection ?? defaultAddToCollection;
         try {
-            await add(client, handle, options.collection, items.map((item) => item.slug));
+            await add(client, handle, options.collection, updatedSlugs);
         }
         catch (err) {
             const message = err instanceof Error ? err.message : String(err);
@@ -25879,17 +26060,17 @@ function openerCommand(url2, platform = process.platform) {
 }
 function launchBrowser(url2, platform = process.platform, spawnImpl = spawn) {
     const { command, args } = openerCommand(url2, platform);
-    return new Promise((resolve2) => {
+    return new Promise((resolve3) => {
         try {
             const child = spawnImpl(command, args, { detached: true, stdio: "ignore" });
-            child.once("error", () => resolve2(false));
+            child.once("error", () => resolve3(false));
             child.once("spawn", () => {
                 child.unref();
-                resolve2(true);
+                resolve3(true);
             });
         }
         catch {
-            resolve2(false);
+            resolve3(false);
         }
     });
 }
@@ -26196,10 +26377,10 @@ function formatOwnerDocument(doc) {
     if (doc.unlisted === true)
         rows2.push(["unlisted", "yes"]);
     if (doc.interactive === true) {
-        const connect = doc.interactiveConnectSrc ?? [];
+        const connect2 = doc.interactiveConnectSrc ?? [];
         rows2.push([
             "interactive",
-            connect.length === 0 ? "yes" : `yes (connect-src: ${connect.join(" ")})`
+            connect2.length === 0 ? "yes" : `yes (connect-src: ${connect2.join(" ")})`
         ]);
     }
     if (doc.allowSourceDownload !== void 0) {
@@ -26683,14 +26864,17 @@ function editScript(a, b) {
     return ops;
 }
 function buildUnifiedDiff(a, va, b, vb) {
-    const ops = editScript(decode3(a.bytes), decode3(b.bytes));
+    return unifiedDiff(a.bytes, b.bytes, `v${va}/${a.filename}`, `v${vb}/${b.filename}`) ?? `(no differences between v${va} and v${vb})`;
+}
+function unifiedDiff(a, b, fromLabel, toLabel) {
+    const ops = editScript(decode3(a), decode3(b));
     const changes = [];
     ops.forEach((op, index) => {
         if (op.kind !== " ")
             changes.push(index);
     });
     if (changes.length === 0)
-        return `(no differences between v${va} and v${vb})`;
+        return null;
     const groups = [];
     for (const index of changes) {
         const current = groups[groups.length - 1];
@@ -26725,8 +26909,8 @@ function buildUnifiedDiff(a, va, b, vb) {
         return `@@ -${aBefore + 1},${aCount} +${bBefore + 1},${bCount} @@
 ${lines.join("\n")}`;
     });
-    return `--- v${va}/${a.filename}
-+++ v${vb}/${b.filename}
+    return `--- ${fromLabel}
++++ ${toLabel}
 ${hunks.join("\n")}`;
 }
 var VERSIONS_USAGE = {
@@ -26963,34 +27147,13 @@ function requireAnswerable(ctx) {
         throw usageError(`${ctx.command} needs --yes when stdin is not a terminal.`);
     }
 }
-async function resolveDefaultHandle(ctx, response) {
-    const forced = ctx.global.workspace ?? ctx.env["HANDOUT_WORKSPACE"];
-    if (forced !== void 0 && forced !== "") {
-        try {
-            return parseWorkspaceHandle(forced);
-        }
-        catch {
-            return void 0;
-        }
-    }
-    const local = (await ctx.localConfig()).defaultWorkspace;
-    if (local !== void 0)
-        return local;
-    if (response.items.length === 0)
-        return void 0;
-    const me = await (await ctx.client()).getMe();
-    const byId = response.items.find((item) => item.id === me.settings.defaultWorkspaceId);
-    if (byId !== void 0)
-        return byId.handle;
-    return response.items.length === 1 ? response.items[0]?.handle : void 0;
-}
 async function runList2(ctx) {
     const context = CONTEXT5("list");
     const scanned = scanArgs(ctx.args, { context, usage: LIST_USAGE2 });
     expectPositionals(scanned, context, 0);
     const client = await ctx.client();
     const response = await client.listWorkspaces();
-    const defaultHandle = ctx.json ? void 0 : await resolveDefaultHandle(ctx, response);
+    const defaultHandle = ctx.json ? void 0 : await ctx.workspace().catch(() => void 0);
     return result("workspaces-list", { response, defaultHandle });
 }
 function formatWorkspaceList(data) {
@@ -27024,15 +27187,6 @@ async function runCreate2(ctx) {
     }
     const client = await ctx.client();
     const workspace = await client.createWorkspace(body, key === void 0 ? void 0 : { idempotencyKey: key });
-    try {
-        const mine = await client.listWorkspaces();
-        if (mine.items.filter((item) => item.deletedAt === void 0).length <= 1) {
-            await ctx.updateLocalConfig({ defaultWorkspace: workspace.handle });
-            ctx.info(`Set as your default workspace (handout use ${workspace.handle} to change).`);
-        }
-    }
-    catch {
-    }
     return result("workspaces-create", workspace);
 }
 async function runGet2(ctx) {
@@ -27152,18 +27306,17 @@ var commands6 = {
 };
 var account_exports = {};
 __export(account_exports, {
+    SETTING_KEYS: () => SETTING_KEYS,
+    SETUP_TIP: () => SETUP_TIP,
     buildSettingsPatch: () => buildSettingsPatch,
     commands: () => commands7,
     formatSettings: () => formatSettings
 });
 var USE_USAGE = buildUsage({
-    synopsis: ["handout use <handle> [--account]", "handout use --clear [--account]"],
-    description: "Stores the default workspace in the local config. --account also saves it on your account so the web app follows.",
-    flags: [
-        ["--account", "Also save the default on your account"],
-        ["--clear", "Remove the default"]
-    ],
-    examples: ["handout use acme", "handout use acme --account"]
+    synopsis: ["handout use <handle>", "handout use --clear"],
+    description: "Saves the default workspace on your account, so the web app follows too.",
+    flags: [["--clear", "Remove the default"]],
+    examples: ["handout use acme", "handout use --clear"]
 });
 var SETTING_KEYS = [
     ["email-notifications", "on|off"],
@@ -27171,6 +27324,7 @@ var SETTING_KEYS = [
     ["theme", "system|light|dark"],
     ["keep-versions", "<n>|clear"],
     ["default-workspace", "<handle>|clear"],
+    ["default-format", "html|markdown|pdf|clear"],
     ["default-exposure", "private|people|password|open|clear"],
     ["default-unlisted", "on|off|clear"],
     ["default-allow-source-download", "on|off|clear"],
@@ -27179,8 +27333,7 @@ var SETTING_KEYS = [
     ["default-collection", "<collection-slug>|clear"],
     ["default-labels", "<a,b,c>|clear"],
     ["weekly-digest", "on|off"],
-    ["default-comments", "on|off|clear"],
-    ["default-approval-mode", "none|owner|clear"]
+    ["default-comments", "on|off|clear"]
 ];
 var SETTINGS_GET_USAGE = buildUsage({
     synopsis: ["handout settings [get]"],
@@ -27211,11 +27364,10 @@ async function runUse(ctx) {
     const scanned = scanArgs(ctx.args, {
         context,
         usage: USE_USAGE,
-        booleans: ["--account", "--clear"]
+        booleans: ["--clear"]
     });
     expectPositionals(scanned, context, 1);
     const clear = scanned.seen.has("--clear");
-    const account = scanned.seen.has("--account");
     const rawHandle = scanned.positionals[0];
     if (clear && rawHandle !== void 0) {
         throw usageError("use --clear takes no workspace handle (handout use --clear).");
@@ -27224,17 +27376,13 @@ async function runUse(ctx) {
         throw usageError("use requires a workspace handle (handout use <handle>).");
     }
     if (clear) {
-        await ctx.updateLocalConfig({ defaultWorkspace: void 0 });
-        if (account)
-            await (await ctx.client()).patchMe({ defaultWorkspaceId: null });
+        await (await ctx.client()).patchMe({ defaultWorkspaceId: null });
         return result("use", { defaultWorkspace: null });
     }
     const handle = parseHandle(rawHandle);
     const client = await ctx.client();
     const workspace = await client.getWorkspace(handle);
-    await ctx.updateLocalConfig({ defaultWorkspace: workspace.handle });
-    if (account)
-        await client.patchMe({ defaultWorkspaceId: workspace.id });
+    await client.patchMe({ defaultWorkspaceId: workspace.id });
     return result("use", { defaultWorkspace: workspace.handle });
 }
 var isClear = (value) => value.trim().toLowerCase() === "clear";
@@ -27289,6 +27437,14 @@ var PARSERS = {
         }
         return { defaultExposure: parsed.data };
     },
+    "default-format": (value, key) => {
+        if (isClear(value))
+            return { defaultFormat: null };
+        const parsed = DefaultFormat.safeParse(value.trim().toLowerCase());
+        if (!parsed.success)
+            throw usageError(`${key} must be html, markdown, pdf or clear.`);
+        return { defaultFormat: parsed.data };
+    },
     "default-collection": (value, key) => {
         if (isClear(value))
             return { defaultCollectionSlug: null };
@@ -27314,14 +27470,6 @@ var PARSERS = {
             throw usageError(`${key} accepts at most ${MAX_LABELS_PER_DOCUMENT} labels (got ${labels.length}).`);
         }
         return { defaultLabels: labels };
-    },
-    "default-approval-mode": (value, key) => {
-        if (isClear(value))
-            return { defaultApprovalMode: null };
-        const parsed = ApprovalMode.safeParse(value.trim().toLowerCase());
-        if (!parsed.success)
-            throw usageError(`${key} must be none, owner or clear.`);
-        return { defaultApprovalMode: parsed.data };
     },
     "default-workspace": async (value, key, ctx) => {
         if (isClear(value))
@@ -27372,6 +27520,7 @@ function formatSettings(data) {
         const handle = data.workspaces.find((w) => w.id === s.defaultWorkspaceId)?.handle;
         lines.push(`Default workspace: ${handle ?? s.defaultWorkspaceId}`);
     }
+    lines.push(`Default format: ${s.defaultFormat ?? "agent decides"}`);
     if (s.defaultExposure !== void 0)
         lines.push(`Default exposure: ${s.defaultExposure}`);
     if (s.defaultUnlisted !== void 0)
@@ -27394,15 +27543,63 @@ function formatSettings(data) {
     if (s.defaultCommentsEnabled !== void 0) {
         lines.push(`Default comments: ${onOffText(s.defaultCommentsEnabled)}`);
     }
-    if (s.defaultApprovalMode !== void 0)
-        lines.push(`Default approval mode: ${s.defaultApprovalMode}`);
     return lines.join("\n");
+}
+var SETUP_TIP = "Tip: Handout setup can save your publishing defaults (format, audience, labels) and add Handout to your agent's instructions. In Claude Code type /handout:setup (plugin) or /handout-setup; in Codex ask for the handout-setup skill. This tip is shown once.";
+async function maybeSetupTip(ctx, settings) {
+    if (ctx.quiet)
+        return;
+    if (hasChosenPublishingDefault(settings))
+        return;
+    try {
+        if ((await ctx.localConfig()).setupTipShown === true)
+            return;
+        await ctx.updateLocalConfig({ setupTipShown: true });
+    }
+    catch {
+        return;
+    }
+    ctx.info(SETUP_TIP);
 }
 async function runSettingsGet(ctx) {
     const context = "on handout settings get";
     expectPositionals(scanArgs(ctx.args, { context, usage: SETTINGS_GET_USAGE }), context, 0);
     const me = await (await ctx.client()).getMe();
+    await maybeSetupTip(ctx, me.settings);
     return result("settings", { settings: me.settings, workspaces: me.workspaces });
+}
+var FIELD_KEYS = {
+    emailNotifications: "email-notifications",
+    weeklyDigest: "weekly-digest",
+    defaultUnlisted: "default-unlisted",
+    defaultAllowSourceDownload: "default-allow-source-download",
+    defaultNotifyOnView: "default-notify-on-view",
+    defaultRequestAcknowledgment: "default-request-ack",
+    defaultCommentsEnabled: "default-comments",
+    digestCadence: "digest-cadence",
+    theme: "theme",
+    keepVersions: "keep-versions",
+    defaultExposure: "default-exposure",
+    defaultFormat: "default-format",
+    defaultCollectionSlug: "default-collection",
+    defaultLabels: "default-labels",
+    defaultWorkspaceId: "default-workspace"
+};
+function reportUnsaved(ctx, patch, settings) {
+    const requested = Object.entries(patch);
+    const dropped = requested.filter(([field, value]) => {
+        if (value === null || Array.isArray(value) && value.length === 0)
+            return false;
+        return settings[field] === void 0;
+    }).map(([field]) => FIELD_KEYS[field] ?? field);
+    if (dropped.length === 0)
+        return;
+    const names = dropped.join(", ");
+    const detail = `the server didn't save ${names} (it may be running an older Handout version).`;
+    if (dropped.length === requested.length) {
+        throw new CliError(`Nothing was saved: ${detail}`, { exitCode: 1, code: "settings_not_saved" });
+    }
+    ctx.warn(`Warning: ${detail}`);
 }
 async function runSettingsSet(ctx) {
     const tokens = [];
@@ -27416,6 +27613,7 @@ async function runSettingsSet(ctx) {
     const patch = await buildSettingsPatch(tokens, ctx);
     const client = await ctx.client();
     const settings = await client.patchMe(patch);
+    reportUnsaved(ctx, patch, settings);
     const workspaces = settings.defaultWorkspaceId === void 0 ? [] : (await client.getMe()).workspaces;
     return result("settings", { settings, workspaces });
 }
@@ -27524,8 +27722,8 @@ function respond(res, status, page2) {
 function startCallbackServer(pkce, timeoutMs, host) {
     return new Promise((resolveStart, rejectStart) => {
         let settle2 = () => void 0;
-        const outcome = new Promise((resolve2) => {
-            settle2 = resolve2;
+        const outcome = new Promise((resolve3) => {
+            settle2 = resolve3;
         });
         let received = false;
         const server = createServer((req, res) => {
@@ -27592,7 +27790,7 @@ function startCallbackServer(pkce, timeoutMs, host) {
                 server.close();
                 server.closeAllConnections();
             };
-            const result2 = new Promise((resolve2, reject) => {
+            const result2 = new Promise((resolve3, reject) => {
                 timer = setTimeout(() => {
                     close();
                     reject(new CliError("Sign-in timed out after 5 minutes; run handout login again.", {
@@ -27609,7 +27807,7 @@ function startCallbackServer(pkce, timeoutMs, host) {
                     if (timer !== void 0)
                         clearTimeout(timer);
                     let answered = false;
-                    resolve2({
+                    resolve3({
                         code: value.code,
                         finish: (status, page2) => {
                             if (answered)
@@ -27814,15 +28012,20 @@ async function runLogin(ctx) {
     const localConfig = await ctx.localConfig();
     const env = { ...ctx.env };
     delete env["HANDOUT_REFRESH_TOKEN"];
+    const forThisWrite = { ...localConfig };
+    delete forThisWrite.noKeychain;
     const store = openStore(ctx.host, {
         env,
-        localConfig,
+        localConfig: forThisWrite,
         noKeychain: flags.noKeychain,
         fallbackApiKey: connection.config.firebase.apiKey
     });
-    await store.write(credential);
-    if (store.writtenTo === "keychain" || store.writtenTo === "file") {
-        await ctx.updateLocalConfig({ credentials: store.writtenTo });
+    await store.replace(credential);
+    if (flags.noKeychain !== (localConfig.noKeychain === true)) {
+        await ctx.updateLocalConfig({ noKeychain: flags.noKeychain ? true : void 0 });
+    }
+    if (store.writtenTo === "file" && !store.keychainDisabled) {
+        ctx.info(`Saved your login to ${store.filePath} (no system keychain is available).`);
     }
     await rememberHost(ctx, localConfig.host);
     const data = { email: credential.email, uid: credential.uid };
@@ -28160,13 +28363,38 @@ var commands9 = {
 };
 var labels_exports = {};
 __export(labels_exports, {
+    applyAdd: () => applyAdd2,
+    applyRemove: () => applyRemove2,
+    applyReorder: () => applyReorder2,
     commands: () => commands10,
-    formatLabels: () => formatLabels
+    formatLabels: () => formatLabels,
+    formatLabelsEdit: () => formatLabelsEdit,
+    parseLabelArgs: () => parseLabelArgs
 });
-var USAGE_TEXT = buildUsage({
-    synopsis: ["handout labels"],
+var LIST_USAGE3 = buildUsage({
+    synopsis: ["handout labels [list]"],
     description: "Shows the workspace's suggested labels with how many documents carry each, then any other labels in use. A label says what kind of document it is (plan, spec, report); a collection says what it belongs to. Pick from the suggested list and ask before inventing a label.",
     examples: ["handout labels", "handout labels --json"]
+});
+var ADD_USAGE2 = buildUsage({
+    synopsis: ["handout labels add <label>..."],
+    description: `Adds labels to the end of the suggested list (at most ${MAX_SUGGESTED_LABELS}). A label is 1-24 characters; a label already on the list, in any letter case, is left as it is. These are suggestions: any label still works on a document.`,
+    examples: ["handout labels add contract", "handout labels add contract,memo --json"]
+});
+var REMOVE_USAGE2 = buildUsage({
+    synopsis: ["handout labels remove <label>..."],
+    description: "Removes labels from the suggested list. Documents that carry a label keep it; it stays a label in use.",
+    examples: ["handout labels remove prototype"]
+});
+var REORDER_USAGE2 = buildUsage({
+    synopsis: ["handout labels reorder <label>..."],
+    description: "Lists every suggested label exactly once, in the new order. Run handout labels to see the current order.",
+    examples: ["handout labels reorder spec plan report review guide notes proposal prototype"]
+});
+var SEED_USAGE = buildUsage({
+    synopsis: ["handout labels seed"],
+    description: `Adds the starter set (${SEED_SUGGESTED_LABELS.join(", ")}) to the end of the suggested list. A label already on the list stays where it is, so nothing is lost.`,
+    examples: ["handout labels seed"]
 });
 function rows(items) {
     const width = Math.max(0, ...items.map((item) => item.label.length));
@@ -28182,7 +28410,7 @@ function formatLabels(data) {
         lines.push("Suggested labels:", ...rows(data.suggested));
     }
     else if (data.seedable === true) {
-        lines.push("No suggested labels yet. This workspace already uses labels, so none were added for you.", "Adopt the suggested set from the workspace's settings page.");
+        lines.push("No suggested labels yet. This workspace already uses labels, so none were added for you.", "Add the suggested set with: handout labels seed");
     }
     else {
         lines.push("No suggested labels.");
@@ -28195,21 +28423,123 @@ function formatLabels(data) {
     return lines.join("\n");
 }
 registerOutput("labels", passthrough(formatLabels));
-async function runLabels(ctx) {
+async function runList3(ctx) {
     const context = "on handout labels";
-    expectPositionals(scanArgs(ctx.args, { context, usage: USAGE_TEXT }), context, 0);
+    expectPositionals(scanArgs(ctx.args, { context, usage: LIST_USAGE3 }), context, 0);
     const handle = await ctx.workspace();
     return result("labels", await (await ctx.client()).getWorkspaceLabels(handle));
 }
+var keyOf = (label) => label.toLowerCase();
+function parseLabelArgs(positionals) {
+    const labels = [];
+    for (const token of positionals) {
+        for (const part of token.split(",")) {
+            const label = part.trim();
+            if (label === "")
+                continue;
+            if (!DocumentLabel.safeParse(label).success) {
+                throw usageError(`"${label}" must be 1-24 characters.`);
+            }
+            labels.push(label);
+        }
+    }
+    return labels;
+}
+function applyAdd2(current, labels) {
+    const next = [...current];
+    const present = new Set(next.map(keyOf));
+    const added = [];
+    const skipped = [];
+    for (const label of normalizeSuggestedLabels(labels)) {
+        if (present.has(keyOf(label))) {
+            skipped.push(label);
+        }
+        else {
+            present.add(keyOf(label));
+            next.push(label);
+            added.push(label);
+        }
+    }
+    if (next.length > MAX_SUGGESTED_LABELS)
+        throw usageError(MAX_SUGGESTED_LABELS_MESSAGE);
+    return { suggestedLabels: next, added, removed: [], skipped };
+}
+function applyRemove2(current, labels) {
+    const drop = new Set(labels.map(keyOf));
+    const stored = new Set(current.map(keyOf));
+    return {
+        suggestedLabels: current.filter((label) => !drop.has(keyOf(label))),
+        added: [],
+        removed: current.filter((label) => drop.has(keyOf(label))),
+        skipped: normalizeSuggestedLabels(labels).filter((label) => !stored.has(keyOf(label)))
+    };
+}
+function applyReorder2(current, labels) {
+    const suggestedLabels = reorderExactly(current, labels, {
+        noun: "suggested label",
+        nameOf: (label) => label,
+        fold: keyOf
+    });
+    return { suggestedLabels, added: [], removed: [], skipped: [] };
+}
+var EDIT_USAGE = {
+    add: ADD_USAGE2,
+    remove: REMOVE_USAGE2,
+    reorder: REORDER_USAGE2,
+    seed: SEED_USAGE
+};
+async function runEdit(ctx, kind) {
+    const context = `on handout labels ${kind}`;
+    const scanned = scanArgs(ctx.args, { context, usage: EDIT_USAGE[kind] });
+    let labels = [];
+    if (kind === "seed") {
+        expectPositionals(scanned, context, 0);
+    }
+    else {
+        labels = parseLabelArgs(scanned.positionals);
+        if (labels.length === 0) {
+            throw usageError(`labels ${kind} requires at least one label (handout labels ${kind} <label>\u2026).`);
+        }
+    }
+    const handle = await ctx.workspace();
+    const client = await ctx.client();
+    const workspace = await client.getWorkspace(handle);
+    const current = workspace.suggestedLabels ?? [];
+    const edit = kind === "add" ? applyAdd2(current, labels) : kind === "seed" ? applyAdd2(current, SEED_SUGGESTED_LABELS) : kind === "remove" ? applyRemove2(current, labels) : applyReorder2(current, labels);
+    if (kind === "add" || kind === "remove") {
+        const note = kind === "add" ? "is already suggested" : "is not suggested";
+        for (const label of edit.skipped)
+            ctx.info(`${label} ${note}`);
+    }
+    const changed = edit.suggestedLabels.length !== current.length || edit.suggestedLabels.some((label, index) => label !== current[index]);
+    let suggestedLabels = current;
+    if (changed) {
+        const saved = await client.patchWorkspace(handle, {
+            suggestedLabels: [...edit.suggestedLabels],
+            expectedUpdatedAt: workspace.updatedAt
+        });
+        suggestedLabels = saved.suggestedLabels ?? edit.suggestedLabels;
+    }
+    ctx.info(`added ${edit.added.length} \xB7 removed ${edit.removed.length} \xB7 ${plural2(suggestedLabels.length, "label")}`);
+    return result("labels-edit", { suggestedLabels, added: edit.added, removed: edit.removed });
+}
+function formatLabelsEdit(data) {
+    return data.suggestedLabels.length === 0 ? "No suggested labels." : `Suggested labels: ${data.suggestedLabels.join(", ")}`;
+}
+registerOutput("labels-edit", passthrough(formatLabelsEdit));
 var commands10 = {
-    labels: { usage: USAGE_TEXT, run: runLabels }
+    "labels list": { usage: LIST_USAGE3, run: runList3 },
+    "labels add": { usage: ADD_USAGE2, run: (ctx) => runEdit(ctx, "add") },
+    "labels remove": { usage: REMOVE_USAGE2, run: (ctx) => runEdit(ctx, "remove") },
+    "labels reorder": { usage: REORDER_USAGE2, run: (ctx) => runEdit(ctx, "reorder") },
+    "labels seed": { usage: SEED_USAGE, run: (ctx) => runEdit(ctx, "seed") }
 };
 var usage_exports = {};
 __export(usage_exports, {
     commands: () => commands11,
     formatUsage: () => formatUsage
 });
-var USAGE_TEXT2 = buildUsage({
+var USAGE_TEXT = buildUsage({
     synopsis: ["handout usage"],
     description: "Shows your account's documents against its limit across all your workspaces, then storage per workspace and per document, biggest documents first.",
     examples: ["handout usage", "handout usage --json"]
@@ -28237,22 +28567,26 @@ function formatUsage(usage) {
 }
 async function runUsage(ctx) {
     const context = "on handout usage";
-    expectPositionals(scanArgs(ctx.args, { context, usage: USAGE_TEXT2 }), context, 0);
+    expectPositionals(scanArgs(ctx.args, { context, usage: USAGE_TEXT }), context, 0);
     if (ctx.global.workspace !== void 0)
         throw usageError(WORKSPACE_REFUSED);
     return result("usage", await (await ctx.client()).getUsage());
 }
 registerOutput("usage", { json: (data) => data, text: formatUsage });
 var commands11 = {
-    usage: { usage: USAGE_TEXT2, run: runUsage }
+    usage: { usage: USAGE_TEXT, run: runUsage }
 };
 var skill_exports = {};
 __export(skill_exports, {
     LEGACY_INSTALL_FILES: () => LEGACY_INSTALL_FILES,
+    SETUP_SKILL_FOLDER: () => SETUP_SKILL_FOLDER,
     SKILL_AGENTS: () => SKILL_AGENTS,
     SKILL_FOLDER: () => SKILL_FOLDER,
     agentSkillsDir: () => agentSkillsDir,
     commands: () => commands12,
+    expandHome: () => expandHome,
+    home: () => home,
+    packagedSetupSkillPath: () => packagedSetupSkillPath,
     packagedSkillPath: () => packagedSkillPath
 });
 import { randomBytes as randomBytes3 } from "node:crypto";
@@ -28289,17 +28623,23 @@ function packagedSkillPath(env, moduleUrl = import.meta.url) {
     if (override !== void 0 && override !== "")
         return resolve(override);
     const here = dirname2(fileURLToPath(moduleUrl));
-    const bundled = "1.5.0".length > 0;
+    const bundled = "1.6.0".length > 0;
     return bundled ? join4(here, "SKILL.md") : join4(here, "..", "..", "SKILL.md");
+}
+var SETUP_SKILL_FOLDER = "handout-setup";
+function packagedSetupSkillPath(env, moduleUrl = import.meta.url) {
+    return join4(dirname2(packagedSkillPath(env, moduleUrl)), "setup", "SKILL.md");
 }
 var INSTALL_USAGE = buildUsage({
     synopsis: ["handout skill install --agent claude|codex", "handout skill install --dir <path>"],
     description: [
-        "Copies the SKILL.md that ships with this CLI into an agent's skills directory, as",
-        `<dir>/${SKILL_FOLDER}/SKILL.md, so the agent can discover Handout. Re-run it after updating the CLI.`,
+        "Copies the two skills that ship with this CLI into an agent's skills directory, so the agent",
+        `can discover Handout: <dir>/${SKILL_FOLDER}/SKILL.md (publishing) and`,
+        `<dir>/${SETUP_SKILL_FOLDER}/SKILL.md (the one-time guided setup, which you start yourself).`,
+        "Re-run it after updating the CLI.",
         "  --agent claude  ~/.claude/skills (or $CLAUDE_CONFIG_DIR/skills)",
         "  --agent codex   ~/.agents/skills",
-        "Claude Code can install the skill as a plugin instead: /plugin marketplace add usehandout/handout,",
+        "Claude Code can install the skills as a plugin instead: /plugin marketplace add usehandout/handout,",
         "then /plugin install handout@usehandout. Use one or the other, not both."
     ].join("\n"),
     flags: [
@@ -28315,13 +28655,24 @@ var INSTALL_USAGE = buildUsage({
 function describeTarget(data) {
     return data.agent === null ? "" : ` for ${SKILL_AGENTS[data.agent].label}`;
 }
+function installLine(name, skill, data) {
+    const target = describeTarget(data);
+    if (skill.status === "unchanged") {
+        return `The ${name}${target} is already up to date (${data.version}): ${skill.path}`;
+    }
+    const verb = skill.status === "installed" ? "Installed" : "Updated";
+    return `${verb} the ${name}${target} (${data.version}): ${skill.path}`;
+}
 registerOutput("skill-install", {
     json: (data) => data,
-    text: (data) => data.status === "unchanged" ? `The Handout skill${describeTarget(data)} is already up to date (${data.version}): ${data.path}` : `${data.status === "installed" ? "Installed" : "Updated"} the Handout skill${describeTarget(data)} (${data.version}): ${data.path}`,
+    text: (data) => [
+        installLine("Handout skill", data, data),
+        installLine("Handout setup skill", data.setup, data)
+    ].join("\n"),
     notes: (data) => {
         const notes = [];
-        if (data.status !== "unchanged") {
-            notes.push(data.agent === null ? "Point your agent at that file, or start a new session if it discovers skills itself." : `Start a new ${SKILL_AGENTS[data.agent].label} session to load it.`);
+        if (data.status !== "unchanged" || data.setup.status !== "unchanged") {
+            notes.push(data.agent === null ? "Point your agent at those files, or start a new session if it discovers skills itself." : `Start a new ${SKILL_AGENTS[data.agent].label} session to load them.`);
         }
         if (data.legacyFiles.length > 0) {
             const folder = dirname2(data.path);
@@ -28345,6 +28696,37 @@ function expandHome(path, env) {
     if (path.startsWith("~/") || path.startsWith("~\\"))
         return join4(home(env), path.slice(2));
     return path;
+}
+async function readPackaged(source, what) {
+    try {
+        return await readFile4(source);
+    }
+    catch (err) {
+        throw fileError(`This CLI's ${what} is missing (${source}): ${errorMessage(err)}. Reinstall the CLI.`, err);
+    }
+}
+async function installOne(contents, folder) {
+    const target = join4(folder, "SKILL.md");
+    let current;
+    try {
+        current = await readFile4(target);
+    }
+    catch {
+        current = void 0;
+    }
+    if (current !== void 0 && current.equals(contents))
+        return { path: target, status: "unchanged" };
+    const staged = `${target}.${randomBytes3(6).toString("hex")}.tmp`;
+    try {
+        await mkdir2(folder, { recursive: true });
+        await writeFile3(staged, contents);
+        await rename2(staged, target);
+    }
+    catch (err) {
+        await rm3(staged, { force: true }).catch(() => void 0);
+        throw fileError(`Could not write ${target}: ${errorMessage(err)}.`, err);
+    }
+    return { path: target, status: current === void 0 ? "installed" : "updated" };
 }
 async function runSkillInstall(ctx) {
     const scanned = scanArgs(ctx.args, {
@@ -28377,40 +28759,11 @@ ${INSTALL_USAGE}`);
         const expanded = expandHome(raw, ctx.env);
         skillsDir = isAbsolute(expanded) ? expanded : resolve(expanded);
     }
-    const source = packagedSkillPath(ctx.env);
-    let contents;
-    try {
-        contents = await readFile4(source);
-    }
-    catch (err) {
-        throw fileError(`This CLI's SKILL.md is missing (${source}): ${errorMessage(err)}. Reinstall the CLI.`, err);
-    }
+    const main2 = await readPackaged(packagedSkillPath(ctx.env), "SKILL.md");
+    const setupSkill = await readPackaged(packagedSetupSkillPath(ctx.env), "setup skill");
     const folder = join4(skillsDir, SKILL_FOLDER);
-    const target = join4(folder, "SKILL.md");
-    let current;
-    try {
-        current = await readFile4(target);
-    }
-    catch {
-        current = void 0;
-    }
-    let status;
-    if (current !== void 0 && current.equals(contents)) {
-        status = "unchanged";
-    }
-    else {
-        status = current === void 0 ? "installed" : "updated";
-        const staged = `${target}.${randomBytes3(6).toString("hex")}.tmp`;
-        try {
-            await mkdir2(folder, { recursive: true });
-            await writeFile3(staged, contents);
-            await rename2(staged, target);
-        }
-        catch (err) {
-            await rm3(staged, { force: true }).catch(() => void 0);
-            throw fileError(`Could not write ${target}: ${errorMessage(err)}.`, err);
-        }
-    }
+    const installed = await installOne(main2, folder);
+    const setup = await installOne(setupSkill, join4(skillsDir, SETUP_SKILL_FOLDER));
     const legacyFiles = [];
     for (const name of LEGACY_INSTALL_FILES) {
         if (await exists(join4(folder, name)))
@@ -28418,21 +28771,630 @@ ${INSTALL_USAGE}`);
     }
     const data = {
         agent,
-        path: target,
-        status,
+        path: installed.path,
+        status: installed.status,
         version: bundledVersion(),
-        legacyFiles
+        legacyFiles,
+        setup
     };
     return result("skill-install", data);
 }
 var commands12 = {
     "skill install": { usage: INSTALL_USAGE, run: runSkillInstall }
 };
+var setup_exports = {};
+__export(setup_exports, {
+    BEGIN_MARKER: () => BEGIN_MARKER,
+    END_MARKER: () => END_MARKER,
+    INSTRUCTIONS_VERSION: () => INSTRUCTIONS_VERSION,
+    INSTRUCTION_AGENTS: () => INSTRUCTION_AGENTS,
+    INSTRUCTION_LINES: () => INSTRUCTION_LINES,
+    MY_RULES_HEADING: () => MY_RULES_HEADING,
+    commands: () => commands13,
+    instructionBlock: () => instructionBlock,
+    instructionsPath: () => instructionsPath,
+    mergeInstructions: () => mergeInstructions
+});
+import { readFile as readFile5, stat as stat3 } from "node:fs/promises";
+import { basename as basename5, dirname as dirname3, isAbsolute as isAbsolute2, join as join5, resolve as resolve2 } from "node:path";
+var INSTRUCTIONS_VERSION = 1;
+var BEGIN_MARKER = `<!-- handout:begin v${INSTRUCTIONS_VERSION} -->`;
+var END_MARKER = "<!-- handout:end -->";
+var INSTRUCTION_LINES = [
+    "## Handout",
+    "",
+    "- After you create a finished, user-facing HTML, Markdown or PDF document, briefly offer to publish it with Handout (the `handout` skill). Skip routine source files, intermediate drafts and secrets, and don't offer again after I decline. Publish only when I ask or approve.",
+    "- Before you produce or publish a document, run `handout settings get --json` and follow my saved defaults (format, audience, labels and the rest) unless I say otherwise in the request. Don't change my Handout settings unless I ask.",
+    "- For a document that is already published, update the same link (`handout update <slug> <file>`) and keep its audience. Never publish a second copy.",
+    "- Never publish with `--exposure open` (anyone with the link) unless I ask for that.",
+    "- After publishing, give me the link exactly as the CLI printed it.",
+    "- Labels say what kind of document it is (`plan`, `spec`, `report`); collections say what it belongs to (a project, client or period). Reuse existing labels and ask before inventing one.",
+    "- When two or more documents belong to the same project, suggest putting them in a collection."
+];
+function instructionBlock(eol = "\n") {
+    return [BEGIN_MARKER, ...INSTRUCTION_LINES, END_MARKER].join(eol);
+}
+var BOM = "\uFEFF";
+var BEGIN_LINE = /^<!-- handout:begin v(\d+) -->[ \t]*\r?$/gm;
+var END_LINE = /^<!-- handout:end -->[ \t]*\r?$/gm;
+function mergeInstructions(existing, keep = []) {
+    if (existing === null) {
+        return {
+            status: "new-file",
+            proposed: `${instructionBlock()}
+`,
+            foundVersion: null,
+            existingSection: null
+        };
+    }
+    if (existing.startsWith(BOM)) {
+        const merged = mergeInstructions(existing.slice(BOM.length), keep);
+        return merged.proposed === null || merged.status === "new-file" ? merged : { ...merged, proposed: `${BOM}${merged.proposed}` };
+    }
+    const eol = existing.includes("\r\n") ? "\r\n" : "\n";
+    const block = instructionBlock(eol);
+    const begins = [...existing.matchAll(BEGIN_LINE)];
+    const ends = [...existing.matchAll(END_LINE)];
+    if (begins.length === 0 && ends.length === 0) {
+        const sections = findHandoutSections(existing, null);
+        const first = sections[0];
+        if (first === void 0) {
+            const body = existing.replace(/(\r?\n)+$/, "");
+            const proposed3 = body === "" ? `${block}${eol}` : `${body}${eol}${eol}${block}${eol}`;
+            return { status: "add", proposed: proposed3, foundVersion: null, existingSection: null };
+        }
+        const existingSection = describe3(first, existing);
+        if (sections.length > 1) {
+            return { status: "conflict", proposed: null, foundVersion: null, existingSection };
+        }
+        const proposed2 = existing.slice(0, first.start) + block + keptAfterBlock(existingSection.text, keep, eol) + existing.slice(first.textEnd);
+        return { status: "unmarked", proposed: proposed2, foundVersion: null, existingSection };
+    }
+    const begin = begins[0];
+    const end = ends[0];
+    if (begins.length !== 1 || ends.length !== 1 || begin === void 0 || end === void 0 || end.index < begin.index) {
+        return { status: "conflict", proposed: null, foundVersion: null, existingSection: null };
+    }
+    const endText = end[0].endsWith("\r") ? end[0].slice(0, -1) : end[0];
+    const blockEnd = end.index + endText.length;
+    const stray = findHandoutSections(existing, [begin.index, blockEnd])[0];
+    if (stray !== void 0) {
+        return {
+            status: "conflict",
+            proposed: null,
+            foundVersion: null,
+            existingSection: describe3(stray, existing)
+        };
+    }
+    const foundVersion = Number(begin[1]);
+    if (foundVersion > INSTRUCTIONS_VERSION) {
+        return { status: "newer", proposed: null, foundVersion, existingSection: null };
+    }
+    const proposed = existing.slice(0, begin.index) + block + existing.slice(blockEnd);
+    return {
+        status: proposed === existing ? "current" : "replace",
+        proposed,
+        foundVersion,
+        existingSection: null
+    };
+}
+function describe3(found, file2) {
+    const text = file2.slice(found.start, found.textEnd);
+    return {
+        startLine: found.startLine,
+        endLine: found.endLine,
+        text,
+        items: splitEntries(text).map((entry) => entry.lines.join("\n"))
+    };
+}
+var MY_RULES_HEADING = "### My Handout rules";
+var LIST_ITEM = /^(?:[-*+]|\d+[.)])[ \t]+/;
+function splitEntries(section2) {
+    const entries = [];
+    let gap = 0;
+    let fence = null;
+    for (const line of section2.split(/\r?\n/).slice(1)) {
+        const last = entries.at(-1);
+        if (fence !== null && last !== void 0) {
+            last.lines.push(line);
+            if (line.trim().startsWith(fence))
+                fence = null;
+            continue;
+        }
+        if (line.trim() === "") {
+            gap += 1;
+            continue;
+        }
+        const opens = /^\s*(`{3,}|~{3,})/.exec(line)?.[1];
+        if (last === void 0 || LIST_ITEM.test(line) || gap > 0 && !/^[ \t]/.test(line)) {
+            entries.push({ lines: [line], gap });
+        }
+        else {
+            last.lines.push(...Array(gap).fill(""), line);
+        }
+        if (opens !== void 0)
+            fence = opens;
+        gap = 0;
+    }
+    return entries;
+}
+function keptAfterBlock(section2, keep, eol) {
+    const chosen = splitEntries(section2).filter((_, i) => keep.includes(i + 1));
+    if (chosen.length === 0)
+        return "";
+    const body = chosen.map((entry, i) => (i === 0 ? "" : eol.repeat(entry.gap + 1)) + entry.lines.join(eol)).join("");
+    return `${eol}${eol}${MY_RULES_HEADING}${eol}${eol}${body}`;
+}
+var HEADING = /^ {0,3}(#{1,6})(?:[ \t]+(.*?))?[ \t]*$/;
+var FENCE = /^ {0,3}(`{3,}|~{3,})/;
+var HANDOUT_TITLE = /^handout(?![\p{L}\p{N}_])/iu;
+function findHandoutSections(text, skip) {
+    const found = [];
+    let open2 = null;
+    let fence = null;
+    let lastText = 0;
+    let lastTextLine = 0;
+    const close = () => {
+        if (open2 === null)
+            return;
+        found.push({
+            start: open2.start,
+            textEnd: lastText,
+            startLine: open2.startLine,
+            endLine: lastTextLine
+        });
+        open2 = null;
+    };
+    let offset = 0;
+    let lineNo = 0;
+    while (offset <= text.length) {
+        const nl = text.indexOf("\n", offset);
+        const next = nl === -1 ? text.length + 1 : nl + 1;
+        const raw = text.slice(offset, nl === -1 ? text.length : nl);
+        const line = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
+        lineNo += 1;
+        const inSkip = skip !== null && offset >= skip[0] && offset < skip[1];
+        if (!inSkip) {
+            const fenceMatch = FENCE.exec(line);
+            const fenceRun = fenceMatch?.[1];
+            if (fence !== null) {
+                if (fenceRun?.[0] === fence.char && fenceRun.length >= fence.size && line.trim() === fenceRun) {
+                    fence = null;
+                }
+            }
+            else if (fenceRun !== void 0) {
+                fence = { char: fenceRun[0] ?? "`", size: fenceRun.length };
+            }
+            else {
+                const heading = HEADING.exec(line);
+                if (heading !== null) {
+                    const level = heading[1]?.length ?? 1;
+                    if (open2 !== null && level <= open2.level)
+                        close();
+                    const title = (heading[2] ?? "").replace(/[ \t]+#+$/, "").trim();
+                    if (open2 === null && HANDOUT_TITLE.test(title)) {
+                        open2 = { start: offset, level, startLine: lineNo };
+                    }
+                }
+            }
+        }
+        if (line.trim() !== "" && open2 !== null) {
+            lastText = offset + line.length;
+            lastTextLine = lineNo;
+        }
+        offset = next;
+    }
+    close();
+    return found;
+}
+var INSTRUCTION_AGENTS = {
+    ...SKILL_AGENTS,
+    other: { label: "your agent" }
+};
+function instructionsPath(agent, scope, env, cwd, platform = process.platform) {
+    if (agent === "other")
+        return null;
+    const file2 = agent === "claude" ? "CLAUDE.md" : "AGENTS.md";
+    if (scope === "project")
+        return join5(cwd, file2);
+    const override = env[agent === "claude" ? "CLAUDE_CONFIG_DIR" : "CODEX_HOME"]?.trim();
+    if (override !== void 0 && override !== "")
+        return join5(override, file2);
+    return join5(home(env, platform), agent === "claude" ? ".claude" : ".codex", file2);
+}
+function shadowingFile(agent, path) {
+    return agent === "codex" && basename5(path) === "AGENTS.md" ? join5(dirname3(path), "AGENTS.override.md") : null;
+}
+var PRINT_USAGE = buildUsage({
+    synopsis: [
+        "handout setup print-instructions --agent claude|codex|other [--scope global|project]",
+        "handout setup print-instructions --agent <name> --file <path>",
+        "handout setup print-instructions --agent <name> [--file <path>] --keep <n,n,...|none>"
+    ],
+    description: [
+        "Prints the Handout block for an agent's instructions file, between version markers, and on",
+        "stderr which file it belongs in and what adding it would change. It never writes the file:",
+        "--json adds the whole proposed file and a diff, for the handout-setup skill to show before it",
+        "writes. A re-run replaces the block between the markers; it is never duplicated.",
+        "A hand-written Handout section outside the markers is listed with numbered entries (existingSection.items);",
+        "the proposal replaces it, or with --keep also keeps the numbered entries you name, verbatim and in their",
+        "original order, under \"### My Handout rules\" after the end marker. It never decides which to keep.",
+        "  --scope global   (default) the agent's own instructions, for every project",
+        "  --scope project  the instructions file in the current directory"
+    ].join("\n"),
+    flags: [
+        ["--agent <name>", "claude, codex or other"],
+        ["--scope <scope>", "global (default) or project"],
+        ["--file <path>", "Another instructions file (instead of --scope)"],
+        [
+            "--keep <n,n,...|none>",
+            "Hand-written section only: the entry numbers to keep (none = replace)"
+        ]
+    ],
+    examples: [
+        "handout setup print-instructions --agent claude",
+        "handout setup print-instructions --agent codex --scope project --json",
+        "handout setup print-instructions --agent other --file ~/.config/my-agent/AGENTS.md"
+    ]
+});
+function statusNote(data) {
+    switch (data.status) {
+        case "new-file":
+            return "It does not exist yet: it would be created with this block.";
+        case "add":
+            return "It has no Handout block yet: this block would be added at the end.";
+        case "replace":
+            return "It holds an older or edited Handout block: this block would replace it, between the markers.";
+        case "unmarked": {
+            const found = data.existingSection;
+            const where = found === null ? "" : ` (lines ${found.startLine}-${found.endLine})`;
+            const keeps = data.kept === null ? "this block would replace it" : data.kept.length === 0 ? "this block would replace it (--keep none)" : `this block would replace it and keep your ${data.kept.length === 1 ? "entry" : "entries"} ${data.kept.join(", ")} after the end marker, under "${MY_RULES_HEADING}"`;
+            return `It has its own Handout section${where}, written by hand, outside the markers: ${keeps}, so the file keeps one Handout section. Ask before changing it; never add a second copy.`;
+        }
+        case "current":
+            return "It already holds this block: nothing to change.";
+        case "newer":
+            return "It holds a Handout block from a newer CLI: update the CLI (npm install -g @usehandout/cli@latest) instead.";
+        case "conflict":
+            return data.existingSection === null ? "Its Handout markers are repeated, unbalanced or out of order: fix them by hand first. Nothing is proposed." : `It has a Handout section of its own (lines ${data.existingSection.startLine}-${data.existingSection.endLine}) next to a marked block, or several of them: keep only one by hand first. Nothing is proposed.`;
+        default:
+            return "Add the block to your agent's instructions file, or pass --file <path> to see the change.";
+    }
+}
+registerOutput("setup-instructions", {
+    json: (data) => data,
+    text: (data) => data.block,
+    notes: (data) => {
+        const where = data.path === null ? [] : [
+            `Instructions file (${INSTRUCTION_AGENTS[data.agent].label}${data.scope === null ? "" : `, ${data.scope}`}): ${data.path}`
+        ];
+        const shadow = data.shadowedBy === null ? [] : [`${data.shadowedBy} exists, and the agent reads it instead of ${data.path}.`];
+        const items = data.existingSection?.items ?? [];
+        const listed = data.status !== "unmarked" || data.kept !== null ? [] : [
+            "Its entries, numbered (keep any of them after the block with --keep <numbers>, e.g. --keep 1,3; --keep none replaces them all):",
+            ...items.flatMap((item, i) => {
+                const [first = "", ...rest] = item.split("\n");
+                return [`  ${i + 1}. ${first}`, ...rest.map((line) => `     ${line}`)];
+            })
+        ];
+        return [
+            ...where,
+            statusNote(data),
+            ...listed,
+            ...shadow,
+            "This command never writes the file; --json adds the proposed file and a diff."
+        ];
+    }
+});
+async function readIfExists(path) {
+    try {
+        return await readFile5(path, "utf8");
+    }
+    catch (err) {
+        if (isErrno(err, "ENOENT"))
+            return null;
+        throw fileError(`Could not read ${path}: ${errorMessage(err)}.`, err);
+    }
+}
+async function isFile(path) {
+    try {
+        return (await stat3(path)).isFile();
+    }
+    catch {
+        return false;
+    }
+}
+function parseKeep(value, count) {
+    const text = value.trim().toLowerCase();
+    if (text === "none")
+        return [];
+    const numbers = text.split(",").map((part) => part.trim());
+    const valid = numbers.every((part) => /^[1-9]\d*$/.test(part) && Number(part) <= count);
+    if (!valid) {
+        throw usageError(`--keep must be "none" or entry numbers between 1 and ${count} separated by commas, like 1,3 (got "${value}").`);
+    }
+    return [...new Set(numbers.map(Number))].sort((a, b) => a - b);
+}
+async function runPrintInstructions(ctx) {
+    const context = "on handout setup print-instructions";
+    const scanned = scanArgs(ctx.args, {
+        context,
+        usage: PRINT_USAGE,
+        values: ["--agent", "--scope", "--file", "--keep"]
+    });
+    expectPositionals(scanned, context, 0);
+    const agentValue = lastValue(scanned, "--agent");
+    if (agentValue === void 0) {
+        throw usageError(`Give --agent claude, codex or other.
+
+${PRINT_USAGE}`);
+    }
+    const agentName = agentValue.trim().toLowerCase();
+    if (!Object.hasOwn(INSTRUCTION_AGENTS, agentName)) {
+        throw usageError(`--agent must be claude, codex or other (got "${agentValue}").`);
+    }
+    const agent = agentName;
+    const scopeValue = lastValue(scanned, "--scope");
+    const fileValue = lastValue(scanned, "--file");
+    if (scopeValue !== void 0 && fileValue !== void 0) {
+        throw usageError("Give --scope or --file, not both.");
+    }
+    let scope = null;
+    let path;
+    if (fileValue !== void 0) {
+        const raw = fileValue.trim();
+        if (raw === "")
+            throw usageError("--file needs a file path.");
+        const expanded = expandHome(raw, ctx.env);
+        path = isAbsolute2(expanded) ? expanded : resolve2(expanded);
+    }
+    else {
+        const scopeName = (scopeValue ?? "global").trim().toLowerCase();
+        if (scopeName !== "global" && scopeName !== "project") {
+            throw usageError(`--scope must be global or project (got "${scopeValue}").`);
+        }
+        scope = scopeName;
+        path = instructionsPath(agent, scope, ctx.env, process.cwd());
+    }
+    const block = instructionBlock();
+    let data = {
+        version: INSTRUCTIONS_VERSION,
+        agent,
+        scope,
+        path,
+        status: null,
+        block,
+        proposed: null,
+        existingSection: null,
+        kept: null,
+        diff: null,
+        shadowedBy: null
+    };
+    const keepValue = lastValue(scanned, "--keep");
+    if (path === null) {
+        if (keepValue !== void 0)
+            throw usageError("--keep needs the file: pass --file <path>.");
+        return result("setup-instructions", data);
+    }
+    const existing = await readIfExists(path);
+    let kept = null;
+    if (keepValue !== void 0) {
+        const probe = mergeInstructions(existing);
+        if (probe.status !== "unmarked" || probe.existingSection === null) {
+            throw usageError(`--keep only applies to a file with a hand-written Handout section outside the markers; ${path} has none.`);
+        }
+        kept = parseKeep(keepValue, probe.existingSection.items.length);
+    }
+    const merge2 = mergeInstructions(existing, kept ?? []);
+    if (kept !== null && merge2.proposed !== null && mergeInstructions(merge2.proposed).status !== "current") {
+        throw usageError("--keep would leave a second Handout heading after the end marker (a kept sub-heading that starts with \"Handout\"). Drop that entry, or reword it by hand first.");
+    }
+    const encoder = new TextEncoder();
+    const diff = merge2.proposed === null || merge2.status === "current" ? null : unifiedDiff(encoder.encode(existing ?? ""), encoder.encode(merge2.proposed), existing === null ? "/dev/null" : path, path);
+    const shadow = shadowingFile(agent, path);
+    data = {
+        ...data,
+        status: merge2.status,
+        proposed: merge2.proposed,
+        existingSection: merge2.existingSection,
+        kept,
+        diff,
+        shadowedBy: shadow !== null && await isFile(shadow) ? shadow : null
+    };
+    return result("setup-instructions", data);
+}
+var commands13 = {
+    "setup print-instructions": { usage: PRINT_USAGE, run: runPrintInstructions }
+};
+var comments_exports = {};
+__export(comments_exports, {
+    commands: () => commands14,
+    formatComments: () => formatComments
+});
+var LIST_USAGE4 = buildUsage({
+    synopsis: ["handout comments list <ref> [--password <secret>]"],
+    description: "Lists the comment threads on a document you can open.",
+    flags: [["--password <secret>", "Document password, if it has one (- reads stdin)"]],
+    examples: ["handout comments list q3-report", "handout comments list acme/q3-report --json"]
+});
+var RESOLVE_USAGE = buildUsage({
+    synopsis: ["handout comments resolve <slug> <id>"],
+    examples: ["handout comments resolve q3-report 01j..."]
+});
+var UNRESOLVE_USAGE = buildUsage({
+    synopsis: ["handout comments unresolve <slug> <id>"],
+    examples: ["handout comments unresolve q3-report 01j..."]
+});
+var DELETE_USAGE4 = buildUsage({
+    synopsis: ["handout comments delete <ref> <id>"],
+    examples: ["handout comments delete q3-report 01j..."]
+});
+var author = (comment) => {
+    const who = comment.authorEmail || comment.authorName || "A reader";
+    return `${who}${comment.authorType === "publisher" ? " (publisher)" : ""}`;
+};
+function commentBlock(comment, indent) {
+    const resolved = comment.resolvedAt === void 0 ? "" : `[resolved by ${comment.resolvedBy ?? "unknown"}] `;
+    return [
+        `${indent}# ${resolved}${comment.id}`,
+        `${indent}${comment.createdAt}  ${author(comment)}`,
+        `${indent}  ${comment.deletedAt === void 0 ? comment.body : "[deleted]"}`
+    ];
+}
+function formatComments(response) {
+    if (!response.commentsEnabled)
+        return "Commenting is turned off for this document.";
+    if (response.comments.length === 0)
+        return "No comments yet.";
+    return response.comments.map((thread) => {
+        const lines = commentBlock(thread, "");
+        for (const reply of thread.replies)
+            lines.push(...commentBlock(reply, "    "));
+        return lines.join("\n");
+    }).join("\n\n");
+}
+async function pair(ctx, sub, usage) {
+    const context = `on handout comments ${sub}`;
+    const scanned = scanArgs(ctx.args, { context, usage });
+    expectPositionals(scanned, context, 2);
+    const ref = scanned.positionals[0]?.trim();
+    const id = scanned.positionals[1]?.trim();
+    if (ref === void 0 || ref === "" || id === void 0 || id === "") {
+        throw usageError(`comments ${sub} requires the document and the ${sub === "delete" ? "comment" : "thread"} id (handout comments ${sub} <slug> <id>).`);
+    }
+    return { ...await resolveDocumentRef(ctx, ref), id };
+}
+async function runList4(ctx) {
+    const context = "on handout comments list";
+    const scanned = scanArgs(ctx.args, { context, usage: LIST_USAGE4, values: ["--password"] });
+    expectPositionals(scanned, context, 1);
+    const ref = scanned.positionals[0]?.trim();
+    if (ref === void 0 || ref === "") {
+        throw usageError("comments list requires the document (handout comments list <ref>).");
+    }
+    const password = await resolvePasswordInput(lastValue(scanned, "--password"), ctx.passwordDeps);
+    const { handle, slug } = await resolveDocumentRef(ctx, ref);
+    const response = await (await ctx.client()).listComments(handle, slug, { password });
+    return result("comments-list", response);
+}
+async function runThread(ctx, resolve3) {
+    const sub = resolve3 ? "resolve" : "unresolve";
+    const { handle, slug, id } = await pair(ctx, sub, resolve3 ? RESOLVE_USAGE : UNRESOLVE_USAGE);
+    const client = await ctx.client();
+    const response = resolve3 ? await client.resolveThread(handle, slug, id) : await client.unresolveThread(handle, slug, id);
+    return result(resolve3 ? "comments-resolve" : "comments-unresolve", { response, slug });
+}
+async function runDelete3(ctx) {
+    const { handle, slug, id } = await pair(ctx, "delete", DELETE_USAGE4);
+    const response = await (await ctx.client()).deleteComment(handle, slug, id);
+    return result("comments-delete", { response, slug, id });
+}
+registerOutput("comments-list", passthrough(formatComments));
+registerOutput("comments-resolve", {
+    json: (d) => d.response,
+    text: (d) => `Resolved thread ${d.response.threadId} on ${d.slug}.`
+});
+registerOutput("comments-unresolve", {
+    json: (d) => d.response,
+    text: (d) => `Reopened thread ${d.response.threadId} on ${d.slug}.`
+});
+registerOutput("comments-delete", {
+    json: (d) => d.response,
+    text: (d) => `Deleted comment ${d.id} on ${d.slug}.`
+});
+var commands14 = {
+    "comments list": { usage: LIST_USAGE4, run: runList4 },
+    "comments resolve": { usage: RESOLVE_USAGE, run: (ctx) => runThread(ctx, true) },
+    "comments unresolve": { usage: UNRESOLVE_USAGE, run: (ctx) => runThread(ctx, false) },
+    "comments delete": { usage: DELETE_USAGE4, run: runDelete3 }
+};
+var browse_exports = {};
+__export(browse_exports, {
+    commands: () => commands15,
+    formatBrowse: () => formatBrowse
+});
+var USAGE2 = buildUsage({
+    synopsis: [
+        "handout browse [--query <text>] [--exposure <rung>] [--label <name>] [--publisher <handle>]",
+        "              [--since <when>] [--collection <slug>] [--cursor <token>]"
+    ],
+    description: "Lists listed documents and collections you can open, most recently updated first (at most 200).",
+    flags: [
+        ["--query <text>", "Search titles and text"],
+        ["--exposure <rung>", "Only this audience"],
+        ["--label <name>", "Only documents with this label"],
+        ["--publisher <handle>", "Only this workspace"],
+        ["--since <when>", "Updated since a date/time or a duration like 7d"],
+        ["--collection <slug>", "Only documents in this collection"],
+        ["--cursor <token>", "Continue from a previous page"]
+    ],
+    examples: ["handout browse --query roadmap", "handout browse --publisher acme --since 7d --json"]
+});
+function formatBrowse(response) {
+    if (response.documents.length === 0 && response.collections.length === 0) {
+        return "Nothing to browse \u2014 no documents or collections you can open are listed.";
+    }
+    const lines = [];
+    if (response.documents.length > 0) {
+        lines.push(`Documents (${response.documents.length}):`);
+        for (const doc of response.documents) {
+            lines.push(`  ${fields(doc.url, doc.exposure, doc.publisher.handle, doc.title, doc.snippet === void 0 || doc.snippet === "" ? void 0 : doc.snippet)}`);
+        }
+    }
+    if (response.collections.length > 0) {
+        lines.push(`Collections (${response.collections.length}):`);
+        for (const collection of response.collections) {
+            lines.push(`  ${fields(collection.url, collection.exposure, collection.publisher.handle, plural2(collection.itemCount, "item"), collection.name)}`);
+        }
+    }
+    if (response.nextCursor !== void 0) {
+        lines.push("Showing the first 200 (most-recently-updated). More results \u2014 next page:", `  handout browse --cursor ${response.nextCursor}   (repeat the same filters)`);
+    }
+    return lines.join("\n");
+}
+async function runBrowse(ctx) {
+    const context = "on handout browse";
+    const scanned = scanArgs(ctx.args, {
+        context,
+        usage: USAGE2,
+        values: [
+            "--query",
+            "--exposure",
+            "--label",
+            "--publisher",
+            "--since",
+            "--collection",
+            "--cursor"
+        ]
+    });
+    expectPositionals(scanned, context, 0);
+    const exposure = lastValue(scanned, "--exposure");
+    const since = lastValue(scanned, "--since");
+    const collection = lastValue(scanned, "--collection")?.trim();
+    const label = lastValue(scanned, "--label")?.trim();
+    const publisher = lastValue(scanned, "--publisher")?.trim();
+    const query = lastValue(scanned, "--query")?.trim();
+    const cursor = lastValue(scanned, "--cursor");
+    const filters = {
+        q: query === "" ? void 0 : query,
+        exposure: exposure === void 0 ? void 0 : parseExposure(exposure),
+        label: label === "" ? void 0 : label,
+        publisher: publisher === "" ? void 0 : publisher,
+        since: since === void 0 ? void 0 : parseSince(since, ctx.now()),
+        collection: collection === "" ? void 0 : collection,
+        cursor
+    };
+    return result("browse", await (await ctx.client()).browse(filters));
+}
+registerOutput("browse", passthrough(formatBrowse));
+var commands15 = {
+    browse: { usage: USAGE2, run: runBrowse }
+};
 import { realpathSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
 import { fileURLToPath as fileURLToPath2, pathToFileURL } from "node:url";
-import { mkdir as mkdir3, readFile as readFile5, rename as rename3, writeFile as writeFile4 } from "node:fs/promises";
-import { dirname as dirname3, join as join5 } from "node:path";
+import { mkdir as mkdir3, readFile as readFile6, rename as rename3, writeFile as writeFile4 } from "node:fs/promises";
+import { dirname as dirname4, join as join6 } from "node:path";
 function compareVersions(a, b) {
     const left = parseVersion(a);
     const right = parseVersion(b);
@@ -28462,11 +29424,11 @@ function parseVersion(value) {
 var CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 var MANIFEST_TIMEOUT_MS = 2000;
 function stampPath(host, env) {
-    return join5(configDir(env), `version-check-${hostHash(host)}.json`);
+    return join6(configDir(env), `version-check-${hostHash(host)}.json`);
 }
 async function readStamp(path) {
     try {
-        const parsed = JSON.parse(await readFile5(path, "utf8"));
+        const parsed = JSON.parse(await readFile6(path, "utf8"));
         if (typeof parsed !== "object" || parsed === null)
             return void 0;
         const record2 = parsed;
@@ -28486,7 +29448,7 @@ async function readStamp(path) {
 }
 async function writeStamp(path, stamp) {
     try {
-        await mkdir3(dirname3(path), { recursive: true, mode: 448 });
+        await mkdir3(dirname4(path), { recursive: true, mode: 448 });
         const tmp = `${path}.${process.pid}.tmp`;
         await writeFile4(tmp, `${JSON.stringify(stamp)}
 `, { mode: 384 });
@@ -28577,7 +29539,12 @@ var COMMAND_TREE = {
     acks: { modules: ["documents", "manage"], summary: "Show who acknowledged a document" },
     list: { modules: ["documents"], summary: "List your documents" },
     get: { modules: ["documents"], summary: "Show a document's details" },
-    labels: { modules: ["labels"], summary: "Show the suggested labels and how often each is used" },
+    labels: {
+        modules: ["labels"],
+        summary: "Show and edit the workspace's suggested labels",
+        subcommands: ["list", "add", "remove", "reorder", "seed"],
+        bare: "list"
+    },
     search: { modules: ["documents"], summary: "Search your documents" },
     source: { modules: ["documents"], summary: "Download a document's source" },
     open: { modules: ["documents"], summary: "Print (or open) a document's link" },
@@ -28600,28 +29567,14 @@ var COMMAND_TREE = {
         ],
         bare: "list"
     },
-    proposals: {
-        modules: ["proposals"],
-        summary: "List and decide edit proposals",
-        subcommands: ["list", "source", "approve", "reject"],
-        deferred: true
-    },
-    lease: {
-        modules: ["proposals", "lease"],
-        summary: "Claim or release a document's edit lease",
-        subcommands: ["claim", "release"],
-        deferred: true
-    },
     comments: {
         modules: ["comments"],
         summary: "List and moderate comments",
-        subcommands: ["list", "resolve", "unresolve", "delete"],
-        deferred: true
+        subcommands: ["list", "resolve", "unresolve", "delete"]
     },
     browse: {
         modules: ["browse"],
-        summary: "Browse documents and collections you can open",
-        deferred: true
+        summary: "Browse documents and collections you can open"
     },
     workspaces: {
         modules: ["workspaces"],
@@ -28653,8 +29606,13 @@ var COMMAND_TREE = {
     usage: { modules: ["usage"], summary: "Show storage and document usage" },
     skill: {
         modules: ["skill"],
-        summary: "Install the Handout skill for an agent",
+        summary: "Install the Handout skills for an agent",
         subcommands: ["install"]
+    },
+    setup: {
+        modules: ["setup"],
+        summary: "Print the Handout block for an agent's instructions",
+        subcommands: ["print-instructions"]
     },
     help: { modules: [], summary: "Show help for a command" }
 };
@@ -28669,14 +29627,14 @@ function buildGlobalUsage() {
     for (const [label, description] of rows2)
         lines.push(`  ${label.padEnd(width)}  ${description}`);
     lines.push("", "Commands:");
-    const names = Object.entries(COMMAND_TREE).filter(([, entry]) => entry.deferred !== true);
+    const names = Object.entries(COMMAND_TREE);
     const nameWidth = Math.max(...names.map(([name]) => name.length));
     for (const [name, entry] of names)
         lines.push(`  ${name.padEnd(nameWidth)}  ${entry.summary}`);
     lines.push("", "Run handout <command> --help for that command's flags.");
     return lines.join("\n");
 }
-var USAGE2 = buildGlobalUsage();
+var USAGE3 = buildGlobalUsage();
 function defaultDeps() {
     return {
         io: { stdout: process.stdout, stderr: process.stderr, stdin: process.stdin },
@@ -28685,56 +29643,27 @@ function defaultDeps() {
         fetchImpl: fetch
     };
 }
-function isCommandModule(value) {
-    return typeof value === "object" && value !== null && "commands" in value && typeof value.commands === "object" && value.commands !== null;
-}
-function isModuleNotFound(err) {
-    return typeof err === "object" && err !== null && "code" in err && (err.code === "ERR_MODULE_NOT_FOUND" || err.code === "MODULE_NOT_FOUND");
-}
-async function importModule(name) {
-    switch (name) {
-        case "publish":
-            return Promise.resolve(publish_exports);
-        case "manage":
-            return Promise.resolve(manage_exports);
-        case "documents":
-            return Promise.resolve(documents_exports);
-        case "versions":
-            return Promise.resolve(versions_exports);
-        case "collections":
-            return Promise.resolve(collections_exports);
-        case "workspaces":
-            return Promise.resolve(workspaces_exports);
-        case "account":
-            return Promise.resolve(account_exports);
-        case "auth":
-            return Promise.resolve(auth_exports);
-        case "library":
-            return Promise.resolve(library_exports);
-        case "labels":
-            return Promise.resolve(labels_exports);
-        case "usage":
-            return Promise.resolve(usage_exports);
-        case "skill":
-            return Promise.resolve(skill_exports);
-        default: {
-            const specifier = `./commands/${name}.js`;
-            return import(specifier);
-        }
-    }
-}
+var MODULES = {
+    publish: publish_exports,
+    manage: manage_exports,
+    documents: documents_exports,
+    versions: versions_exports,
+    collections: collections_exports,
+    workspaces: workspaces_exports,
+    account: account_exports,
+    auth: auth_exports,
+    library: library_exports,
+    labels: labels_exports,
+    usage: usage_exports,
+    skill: skill_exports,
+    setup: setup_exports,
+    comments: comments_exports,
+    browse: browse_exports
+};
 async function loadCommandModule(name, deps) {
     if (deps.loadModule !== void 0)
         return deps.loadModule(name);
-    try {
-        const mod = await importModule(name);
-        return isCommandModule(mod) ? mod : void 0;
-    }
-    catch (err) {
-        if (isModuleNotFound(err) && errorMessage(err).includes(`commands/${name}`))
-            return void 0;
-        throw err;
-    }
+    return Object.hasOwn(MODULES, name) ? MODULES[name] : void 0;
 }
 function selectCommand(rest) {
     let nameIndex = -1;
@@ -28807,7 +29736,11 @@ function createContext(command, args, global, host, deps) {
             env: deps.env,
             fetchImpl: deps.fetchImpl,
             now: deps.now,
-            ...deps.sleep === void 0 ? {} : { sleep: deps.sleep }
+            ...deps.sleep === void 0 ? {} : { sleep: deps.sleep },
+            onNotice: (line) => {
+                deps.io.stderr.write(`${line}
+`);
+            }
         });
         return connectionPromise;
     };
@@ -28832,15 +29765,11 @@ function createContext(command, args, global, host, deps) {
         connection,
         client,
         workspace: () => {
-            workspacePromise ??= (async () => {
-                const localDefault = global.workspace === void 0 && deps.env["HANDOUT_WORKSPACE"] === void 0 ? (await localConfig()).defaultWorkspace : void 0;
-                return resolveWorkspaceHandle({
-                    flag: global.workspace,
-                    env: deps.env,
-                    localDefault,
-                    getMe: async () => (await client()).getMe()
-                });
-            })();
+            workspacePromise ??= resolveWorkspaceHandle({
+                flag: global.workspace,
+                env: deps.env,
+                getMe: async () => (await client()).getMe()
+            });
             return workspacePromise;
         },
         localConfig,
@@ -28910,20 +29839,20 @@ async function findDefinition(key, entry, deps) {
     return void 0;
 }
 async function runCommand(argv, deps = defaultDeps()) {
-    const { global, rest } = extractGlobalFlags(argv, USAGE2);
+    const { global, rest } = extractGlobalFlags(argv, USAGE3);
     const selection = selectCommand(rest);
     if (selection.name === void 0) {
         if (global.help) {
-            deps.io.stdout.write(textLine(USAGE2));
+            deps.io.stdout.write(textLine(USAGE3));
             return;
         }
-        throw usageError(USAGE2);
+        throw usageError(USAGE3);
     }
     if (selection.name === "help") {
         const topics = selection.remaining.filter((t) => !isUnknownFlagToken(t));
         const target = topics.length === 0 ? [] : [...topics, "--help"];
         if (target.length === 0) {
-            deps.io.stdout.write(textLine(USAGE2));
+            deps.io.stdout.write(textLine(USAGE3));
             return;
         }
         await runCommand([...target, ...rest.filter((t) => isUnknownFlagToken(t))], deps);
@@ -28955,9 +29884,6 @@ async function runCommand(argv, deps = defaultDeps()) {
     }
     const definition = await findDefinition(key, entry, deps);
     if (definition === void 0) {
-        if (entry.deferred === true) {
-            throw usageError(`Unknown command "${selection.name}". Run handout --help for the list of commands.`);
-        }
         throw usageError(`The command "${key}" is not available in this build of handout.`);
     }
     if (global.help) {
@@ -29014,7 +29940,7 @@ async function execute(argv, deps = defaultDeps()) {
     let exitCode = 0;
     resetShapeMismatch();
     try {
-        const { global, rest } = extractGlobalFlags(argv, USAGE2);
+        const { global, rest } = extractGlobalFlags(argv, USAGE3);
         json2 = global.json;
         quiet = global.quiet;
         noColor = global.noColor;
@@ -29025,7 +29951,7 @@ async function execute(argv, deps = defaultDeps()) {
         }
         const selection = selectCommand(rest);
         const knownCommand = selection.name !== void 0 && Object.hasOwn(COMMAND_TREE, selection.name);
-        const offline = global.help || !knownCommand || selection.name === "help" || selection.name === "skill";
+        const offline = global.help || !knownCommand || selection.name === "help" || selection.name === "skill" || selection.name === "setup";
         let host = deps.host;
         if (!offline) {
             if (host === void 0) {
@@ -29110,4 +30036,4 @@ var isMain = isMainModule(process.argv[1], import.meta.url);
 if (isMain) {
     void main();
 }
-export { CLI_NAME, COMMAND_OUTPUT, COMMAND_TREE, USAGE2 as USAGE, defaultDeps, execute, isMainModule, main, printLintWarnings2 as printLintWarnings, runCommand };
+export { CLI_NAME, COMMAND_OUTPUT, COMMAND_TREE, USAGE3 as USAGE, defaultDeps, execute, isMainModule, main, printLintWarnings2 as printLintWarnings, runCommand };

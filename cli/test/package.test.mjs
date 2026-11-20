@@ -38,14 +38,20 @@ after(async () => {
 });
 
 describe("the package", () => {
-  it("is @usehandout/cli with the handout bin, Node 24+, and nothing but the bundle and skill", () => {
+  it("is @usehandout/cli with the handout bin, Node 24+, and nothing but the bundle, skill and keychain binding", () => {
     assert.equal(pkg.name, "@usehandout/cli");
     assert.deepEqual(pkg.bin, { handout: "handout.mjs" });
     assert.equal(pkg.engines.node, ">=24");
-    assert.deepEqual(pkg.files, ["handout.mjs", "SKILL.md", "NOTICE"]);
+    assert.deepEqual(pkg.files, ["handout.mjs", "SKILL.md", "setup/SKILL.md", "NOTICE"]);
     assert.equal(pkg.license, "Apache-2.0");
     assert.equal(pkg.repository.url, "git+https://github.com/usehandout/handout.git");
-    assert.equal(pkg.dependencies, undefined, "the bundle has no runtime dependencies");
+    assert.equal(pkg.dependencies, undefined, "the bundle has no required runtime dependencies");
+    // The OS keychain binding is optional (an install never fails without it) and pinned exactly:
+    // a new version of a native binary is a reviewed change, never a range resolved at install.
+    assert.deepEqual(pkg.optionalDependencies, { "@napi-rs/keyring": "2.1.2" });
+    for (const version of Object.values(pkg.optionalDependencies)) {
+      assert.match(version, /^\d+\.\d+\.\d+$/, "exact version pins only");
+    }
     assert.equal(pkg.scripts, undefined, "no install scripts");
     assert.match(pkg.version, /^\d+\.\d+\.\d+$/);
   });
@@ -75,6 +81,7 @@ describe("the package", () => {
       "SKILL.md",
       "handout.mjs",
       "package.json",
+      "setup/SKILL.md",
     ]);
   });
 });
@@ -90,7 +97,7 @@ describe("the CLI", () => {
     ["claude", [".claude", "skills"]],
     ["codex", [".agents", "skills"]],
   ]) {
-    it(`skill install --agent ${agent} copies the packaged SKILL.md`, async () => {
+    it(`skill install --agent ${agent} copies the packaged SKILL.md and setup skill`, async () => {
       const env = { HOME: home, USERPROFILE: home };
       const result = await run(
         process.execPath,
@@ -100,8 +107,25 @@ describe("the CLI", () => {
       assert.equal(result.code, 0, result.stderr);
       const installed = await readFile(join(home, ...parts, "handout", "SKILL.md"), "utf8");
       assert.equal(installed, await readFile(join(CLI, "SKILL.md"), "utf8"));
+      const setup = await readFile(join(home, ...parts, "handout-setup", "SKILL.md"), "utf8");
+      assert.equal(setup, await readFile(join(CLI, "setup", "SKILL.md"), "utf8"));
+      assert.match(setup, /^---\nname: handout-setup\n/);
     });
   }
+
+  it("setup print-instructions prints the marked block and writes nothing", async () => {
+    const env = { HOME: home, USERPROFILE: home };
+    const result = await run(
+      process.execPath,
+      [join(CLI, "handout.mjs"), "setup", "print-instructions", "--agent", "claude", "--json"],
+      env,
+    );
+    assert.equal(result.code, 0, result.stderr);
+    const data = JSON.parse(result.stdout);
+    assert.match(data.block, /^<!-- handout:begin v\d+ -->\n[\s\S]+\n<!-- handout:end -->$/);
+    assert.equal(data.status, "new-file");
+    await assert.rejects(readFile(join(home, ".claude", "CLAUDE.md"), "utf8"));
+  });
 });
 
 describe("the Claude Code plugin", () => {
@@ -116,6 +140,15 @@ describe("the Claude Code plugin", () => {
     );
     assert.equal(manifest.name, "handout");
     assert.equal(manifest.version, pkg.version);
+  });
+
+  it("ships the setup skill as /handout:setup: the package's file with name: setup", async () => {
+    const plugin = join(ROOT, "plugins", "handout");
+    const packaged = await readFile(join(CLI, "setup", "SKILL.md"), "utf8");
+    assert.equal(
+      await readFile(join(plugin, "skills", "setup", "SKILL.md"), "utf8"),
+      packaged.replace(/^---\nname: handout-setup\n/, "---\nname: setup\n"),
+    );
   });
 
   it("is listed in the usehandout marketplace", async () => {

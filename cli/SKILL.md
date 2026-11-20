@@ -42,21 +42,17 @@ Then make this skill available to your agent:
 | Codex                  | `handout skill install --agent codex` (writes `~/.agents/skills/handout/SKILL.md`).                                                                                                                    |
 | Another terminal agent | `handout skill install --dir <its skills directory>`.                                                                                                                                                  |
 
-`handout skill install` copies the `SKILL.md` that ships with the installed CLI into `<skills directory>/handout/SKILL.md`; `--agent claude` uses `~/.claude/skills`. If the agent discovers skills automatically, start a new conversation after installation. Otherwise ask it to read that `SKILL.md` before using Handout. Installing the CLI does not itself make every agent load the skill.
+`handout skill install` copies the `SKILL.md` that ships with the installed CLI into `<skills directory>/handout/SKILL.md`, and the setup skill into `<skills directory>/handout-setup/SKILL.md`; `--agent claude` uses `~/.claude/skills`. If the agent discovers skills automatically, start a new conversation after installation. Otherwise ask it to read that `SKILL.md` before using Handout. Installing the CLI does not itself make every agent load the skill.
 
 The CLI talks to `https://usehandout.com` unless `--host` or `HANDOUT_HOST` names another Handout site.
 
 **Staying up to date.** At most once a day the CLI prints `A newer handout CLI (<version>) is available; update it with: npm install -g @usehandout/cli@latest` on stderr; run that command when convenient, then `handout skill install` again for each agent you installed the skill for that way (a Claude Code plugin updates from `/plugin`). Exit code 3 with `no longer supported` means the installed CLI is too old for the host: run the same npm command, and do not set `HANDOUT_SKIP_VERSION_CHECK=1` without telling the user.
 
-**Optional persistent preference.** Installing the skill does not edit any agent instructions file. Offer the user a separate, opt-in prompt to add a concise Handout section to their agent's active persistent instructions. Let them choose project-only or global scope; preserve existing content, update an existing Handout section instead of duplicating it, and show the resulting change. Never modify these files merely because installation succeeded. Suggested instruction:
-
-```text
-After creating a finished, user-facing HTML, Markdown or PDF document, briefly offer to publish it through Handout. Skip routine source files, intermediate drafts, secrets, and repeated offers after I decline. Publish only when I request or approve it. Before publishing, read handout settings get --json and respect my saved defaults unless I explicitly override them. Do not change account settings without my instruction. For an existing handout, update the same link and preserve its audience.
-```
+**Guided setup.** `handout skill install` also installs `handout-setup`, a one-time guided setup that the user starts (`/handout:setup` with the Claude Code plugin, `/handout-setup` otherwise). It saves the account's publishing defaults and can add a Handout section to the agent's instructions. Do not suggest it on your own: when `handout settings get` prints a setup tip on stderr (at most once per machine), pass it on to the user in one line, and say nothing more about setup.
 
 ## Sign in
 
-`handout login` opens the user's browser once for a one-time sign-in; it needs a person at the keyboard. Credentials are kept per host in the operating system keychain, or in a private file under `~/.config/handout/` when no keychain is reachable (`--no-keychain` forces the file). `handout whoami` shows who you are signed in as and your workspaces; `handout logout` removes this host's credential.
+`handout login` opens the user's browser once for a one-time sign-in; it needs a person at the keyboard. Credentials are kept per host in the operating system keychain, or in a private file under `~/.config/handout/` when no keychain is reachable (`--no-keychain` forces the file, and later commands keep to it). A login kept in the file moves into the keychain the first time the keychain is usable, and that command says so once on stderr; pass it on to the user in one line. `handout whoami` shows who you are signed in as and your workspaces; `handout logout` removes this host's credential.
 
 When a command exits 2 with `Not signed in. Run: handout login`, ask the user to run `handout login` in their own terminal.
 
@@ -64,9 +60,11 @@ When a command exits 2 with `Not signed in. Run: handout login`, ask the user to
 
 ## Workspaces
 
-Every document lives in a workspace, identified by a handle. `handout workspaces list` shows yours; `handout use <handle>` stores a default; `--workspace <handle>` (or `-w`) overrides it for one call. A user with exactly one workspace needs neither. A user with none creates one: `handout workspaces create <handle> --name "<name>"`.
+Every document lives in a workspace, identified by a handle. `handout workspaces list` shows yours; `handout use <handle>` saves a default on your account (the web app follows); `--workspace <handle>` (or `-w`) overrides it for one call. A user with exactly one workspace needs neither. A user with none creates one: `handout workspaces create <handle> --name "<name>"`.
 
-**Account publishing defaults.** Before a publishing workflow, run `handout settings get --json`. It returns settings directly, including optional `defaultExposure`, labels, collection, source-download, notification and acknowledgment defaults. Read the live settings rather than storing a copy in agent memory; refresh them if the user changes them. `handout settings set default-exposure private` sets the Only me default, but only run settings mutations when the user asks.
+**Account publishing defaults.** Before you produce a document the user may publish, and before a publishing workflow, run `handout settings get --json`. It returns settings directly, including optional `defaultFormat`, `defaultExposure`, labels, collection, source-download, notification and acknowledgment defaults. Read the live settings rather than storing a copy in agent memory; refresh them if the user changes them. `handout settings set default-exposure private` sets the Only me default, but only run settings mutations when the user asks.
+
+**Default format.** `defaultFormat` (`html`, `markdown` or `pdf`) is the format to make a new document in when the user does not name one; when it is absent, choose the format as usual. A format the user names wins, and the setting never converts a document that already exists or one the user gave you.
 
 Audience precedence is the user's explicit request, then their saved account default, then the system fallback (`private`, meaning only the document owner). With no explicit audience override, omit `--exposure` so the server applies current account defaults and verification fallbacks; do not hardcode `private` merely because it is common. Apply the same principle to other publishing flags. A saved `open` default is an explicit account preference, not a reason to change other documents' audiences. Explain the audience in the publish offer/result, request missing people/password details when needed, and never infer public access from vague wording such as "share." If settings cannot be read, report the failure rather than guessing. Updating an existing document preserves its existing audience instead of reapplying new-document defaults.
 
@@ -87,15 +85,13 @@ Every command takes the global flags `--workspace/-w`, `--host`, `--json`, `--qu
 | `invite`                                  | `handout invite q3-report --to a@b.com`                         | a confirmation line                                                                                       |
 | `activity` / `audit` / `acks`             | `handout activity q3-report`                                    | views, history, acknowledgments                                                                           |
 | `list`                                    | `handout list --label report`                                   | url, audience, type, title per line; `--collection <slug>` filters to one collection                      |
-| `labels`                                  | `handout labels --json`                                         | the workspace's suggested labels with usage counts                                                        |
+| `labels`                                  | `handout labels --json`                                         | suggested labels with usage counts; `add`, `remove`, `reorder`, `seed` edit the list                      |
 | `get`                                     | `handout get q3-report`                                         | a key/value block                                                                                         |
 | `search`                                  | `handout search "quarterly"`                                    | slug, where it matched, title                                                                             |
 | `source`                                  | `handout source q3-report --out report.md`                      | the source file                                                                                           |
 | `open`                                    | `handout open q3-report`                                        | the URL (no network call)                                                                                 |
 | `read`                                    | `handout read <ref>`                                            | the rendered body or the file bytes                                                                       |
 | `collections`                             | `handout collections list`                                      | `list`, `create`, `get`, `update`, `rename`, `delete`, `add`, `remove`, `reorder`, `activity`, `audit`    |
-| `proposals`                               | `handout proposals list q3-report`                              | `list`, `source`, `approve`, `reject`                                                                     |
-| `lease`                                   | `handout lease claim q3-report`                                 | `claim`, `release`                                                                                        |
 | `comments`                                | `handout comments list <ref>`                                   | `list`, `resolve`, `unresolve`, `delete`                                                                  |
 | `browse`                                  | `handout browse --query roadmap`                                | documents and collections you can open                                                                    |
 | `workspaces`                              | `handout workspaces list`                                       | `list`, `create`, `get`, `update`, `delete`, `restore`                                                    |
@@ -106,7 +102,8 @@ Every command takes the global flags `--workspace/-w`, `--host`, `--json`, `--qu
 | `shared` / `library`                      | `handout shared`                                                | what others shared; saved, followed, recent                                                               |
 | `save` / `unsave` / `follow` / `unfollow` | `handout follow acme/q3-report`                                 | a confirmation line                                                                                       |
 | `usage`                                   | `handout usage`                                                 | documents against your limit across all workspaces; storage per workspace and document (no `--workspace`) |
-| `skill`                                   | `handout skill install --agent codex`                           | `install`: copies this SKILL.md into an agent's skills directory                                          |
+| `skill`                                   | `handout skill install --agent codex`                           | `install`: copies this SKILL.md and the setup skill into an agent's skills directory                      |
+| `setup`                                   | `handout setup print-instructions --agent claude --json`        | the Handout block for an agent's instructions file and the change it would make (never writes)            |
 | `help`                                    | `handout help publish`                                          | usage for a command                                                                                       |
 
 `handout --version` prints the installed version. `handout <command> --help` prints that command's flags.
@@ -119,15 +116,17 @@ Each workspace keeps a short, editable list of suggested labels. Before you labe
 
 1. Run `handout labels --json`. `suggested` is the list, each entry with the number of documents that carry it; `other` is labels in use that are not suggested.
 2. Pick from `suggested`, one or two per document. Reuse an existing spelling instead of a variant (`Plan` vs `plan`).
-3. If nothing on the list fits, **ask the user before inventing a label**. A free-text label is still accepted, but a guessed one becomes a permanent near-duplicate. When `suggested` is empty and `seedable` is true, the workspace already uses labels and has no list yet: do not invent one; tell the user they can adopt the suggested set on the workspace's settings page.
+3. If nothing on the list fits, **ask the user before inventing a label**. A free-text label is still accepted, but a guessed one becomes a permanent near-duplicate. When `suggested` is empty and `seedable` is true, the workspace already uses labels and has no list yet: do not invent one; tell the user `handout labels seed` adds the suggested set, and run it only if they say yes.
 4. When two or more documents share a project, client or period, **suggest a collection** (`handout collections create` and `collections add`) instead of a label, and ask before creating it. `handout list --collection <slug>` lists what is in one, and `handout get <slug>` shows the collections a document is in. Never label a document with its collection's name.
 5. A `suggested` or `other` entry may carry `matchesCollection: { slug, name }`: every document with that label is exactly the members of that collection, so the label stores the same fact twice. **Suggest the collection to the user** ("Every document labelled `q3` is already in the Q3 pack collection; use the collection instead?") and do not apply that label to new documents. It is a suggestion only: never remove the label, add or remove collection members, or delete anything because of it unless the user says to.
+
+Edit the suggested list only when the user asks (or in guided setup): `handout labels add <label>…`, `labels remove <label>…`, `labels reorder <label>…` (every suggested label, once) and `labels seed` (the starter set). They print the new list (`--json`: `suggestedLabels`, `added`, `removed`) and never touch a document's own labels.
 
 The user's account `defaultLabels` setting is separate: it stamps labels on every publish, and you never change it unless asked.
 
 ## Publish what you just generated
 
-1. Write the file to disk first; the CLI publishes files, not stdin. Use the extension that matches the content (`.html`, `.md`, `.pdf`) or pass `--content-type`. Word (`.docx`) is not supported: export it as PDF, or convert it to Markdown or HTML first. A document may be up to 20 MB (the account's limit can be lower; the CLI reports it).
+1. Write the file to disk first; the CLI publishes files, not stdin. When the user named no format, make it in the account's `defaultFormat` if one is set. Use the extension that matches the content (`.html`, `.md`, `.pdf`) or pass `--content-type`. Word (`.docx`) is not supported: export it as PDF, or convert it to Markdown or HTML first. A document may be up to 20 MB (the account's limit can be lower; the CLI reports it).
 2. Check that it isn't already published. If you published this artefact earlier in the conversation, use `handout update <slug> <file>`. Otherwise run `handout search "<words from its title>" --json`; when a match looks like the same document, confirm it with the user and update it instead of minting a duplicate.
 3. For rich HTML, run the grep checklist in the HTML authoring section and fix every hit, or publish `--interactive` when the document genuinely needs scripts and the user accepts the audience rule.
 4. Read the account publishing defaults as described above. Explicit audience requests override them: "just for me" is `--exposure private`; "the team" is `--exposure people --people @acme.com`; named people or a domain is `--people a@b.com --people @acme.com` (this implies `people`); "anyone with the link" is `--exposure open`; "with a password" is `--password -` (reads the password from stdin, so it stays out of the process list). Otherwise omit `--exposure` to honor the saved account default, falling back to `private` server-side. Never explicitly select `open` without a user instruction; an existing saved default is applied by the server, not rewritten as a hardcoded flag.
@@ -198,7 +197,7 @@ Pass `--json` whenever you will parse the output, and never scrape the text outp
 - `purge`: `{"slug","purged":true}`; `collections delete`: `{"slug","deleted":true}`; `use`: `{"defaultWorkspace":"<handle>"}`;
 - `activity`: the activity record alone; everything else: the API response unchanged.
 
-Errors under `--json` are one JSON line on stderr: `{"error":{"code":"<code>","message":"<message>","status"?:<http>,"details"?:{...},"requestId"?:"<id>"}}`. `code` is the API error code (`plan_limit`, `slug_taken`, ...) or one of `usage`, `file`, `config`, `auth`, `network`, `response_shape`, `cancelled`, `version_unsupported`. Exit codes: 0 success, 1 failure, 2 not signed in, 3 CLI too old. Commands with no `--json`: `login`, `logout`, `source`, `versions source`, `proposals source`, `read`, `open`, `help`.
+Errors under `--json` are one JSON line on stderr: `{"error":{"code":"<code>","message":"<message>","status"?:<http>,"details"?:{...},"requestId"?:"<id>"}}`. `code` is the API error code (`plan_limit`, `slug_taken`, ...) or one of `usage`, `file`, `config`, `auth`, `network`, `response_shape`, `cancelled`, `version_unsupported`. Exit codes: 0 success, 1 failure, 2 not signed in, 3 CLI too old. Commands with no `--json`: `login`, `logout`, `source`, `versions source`, `read`, `open`, `help`.
 
 stdout carries only the result; every notice, summary line and warning goes to stderr.
 
@@ -291,17 +290,17 @@ Each line shows the command and its expected output.
 
 ## Environment variables
 
-| Variable                       | Effect                                                                         |
-| ------------------------------ | ------------------------------------------------------------------------------ |
-| `HANDOUT_HOST`                 | The Handout origin to talk to (default `https://usehandout.com`)               |
-| `HANDOUT_REFRESH_TOKEN`        | Headless credential; overrides the stored one. Treat as a password             |
-| `HANDOUT_API_KEY`              | Firebase web API key to use with `HANDOUT_REFRESH_TOKEN`                       |
-| `HANDOUT_WORKSPACE`            | Default workspace handle for the invocation (below `--workspace`)              |
-| `HANDOUT_DOCUMENT_PASSWORD`    | Document or collection password when `--password` is absent; never printed     |
-| `HANDOUT_NO_KEYCHAIN=1`        | Skip the OS keychain, as `--no-keychain` does                                  |
-| `HANDOUT_SKILL_SOURCE`         | The `SKILL.md` that `handout skill install` copies (default: the packaged one) |
-| `HANDOUT_SKIP_VERSION_CHECK=1` | Bypass the minimum-version gate; tell the user if you set it                   |
-| `NO_COLOR`                     | Disables colour                                                                |
+| Variable                       | Effect                                                                                                                        |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `HANDOUT_HOST`                 | The Handout origin to talk to (default `https://usehandout.com`)                                                              |
+| `HANDOUT_REFRESH_TOKEN`        | Headless credential; overrides the stored one. Treat as a password                                                            |
+| `HANDOUT_API_KEY`              | Firebase web API key to use with `HANDOUT_REFRESH_TOKEN`                                                                      |
+| `HANDOUT_WORKSPACE`            | Default workspace handle for the invocation (below `--workspace`)                                                             |
+| `HANDOUT_DOCUMENT_PASSWORD`    | Document or collection password when `--password` is absent; never printed                                                    |
+| `HANDOUT_NO_KEYCHAIN=1`        | Skip the OS keychain, as `--no-keychain` does                                                                                 |
+| `HANDOUT_SKILL_SOURCE`         | The `SKILL.md` that `handout skill install` copies (default: the packaged one); the setup skill is `setup/SKILL.md` beside it |
+| `HANDOUT_SKIP_VERSION_CHECK=1` | Bypass the minimum-version gate; tell the user if you set it                                                                  |
+| `NO_COLOR`                     | Disables colour                                                                                                               |
 
 Precedence for every setting: flag, then environment, then the local config file, then the account setting, then the default.
 

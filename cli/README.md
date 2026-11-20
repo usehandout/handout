@@ -24,6 +24,13 @@ handout skill install --dir <path>     # any other agent's skills directory
 In Claude Code you can install the plugin instead: `/plugin marketplace add usehandout/handout`,
 then `/plugin install handout@usehandout`. Use the plugin or `--agent claude`, not both.
 
+Each install also adds `handout-setup`, a one-time guided setup that you start yourself:
+`/handout:setup` with the plugin, `/handout-setup` otherwise in Claude Code; in Codex, ask for
+the Handout setup. It saves your publishing defaults (such as the default format and audience),
+offers starter collections, and adds a short Handout section to your agent's instructions only
+after you approve the exact change. `handout setup print-instructions --agent claude` prints that section; it never
+writes a file.
+
 ## Update
 
 ```bash

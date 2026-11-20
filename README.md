@@ -23,18 +23,21 @@ Then give your agent the skill:
 | Codex                  | `handout skill install --agent codex`                                                                     |
 | Another agent          | `handout skill install --dir <its skills directory>`, or ask the agent to read [`SKILL.md`](cli/SKILL.md) |
 
-Start a new agent session afterwards so it loads the skill. To update, run
+Start a new agent session afterwards so it loads the skill. Then, if you like, run the one-time
+guided setup: `/handout:setup` in Claude Code with the plugin, `/handout-setup` otherwise; in
+Codex, ask for the Handout setup. It saves your publishing defaults and, only after you approve the
+exact change, adds a short Handout section to your agent's instructions. To update, run
 `npm install -g @usehandout/cli@latest`, then `handout skill install` again (a plugin updates from
 `/plugin`).
 
 ## What is here
 
-| Path                                                             | What it is                                                                            |
-| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| [`cli/`](cli)                                                    | The npm package `@usehandout/cli`: the bundled CLI (`handout.mjs`) and its `SKILL.md` |
-| [`.claude-plugin/`](.claude-plugin)                              | The Claude Code plugin marketplace (`usehandout`)                                     |
-| [`plugins/handout/`](plugins/handout)                            | The Claude Code plugin: the same `SKILL.md`                                           |
-| [`.github/workflows/release.yml`](.github/workflows/release.yml) | Publishes `cli/` to npm, with provenance, when a `skill-v<version>` tag is pushed     |
+| Path                                                             | What it is                                                                                                           |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| [`cli/`](cli)                                                    | The npm package `@usehandout/cli`: the bundled CLI (`handout.mjs`) and its two skills (`SKILL.md`, `setup/SKILL.md`) |
+| [`.claude-plugin/`](.claude-plugin)                              | The Claude Code plugin marketplace (`usehandout`)                                                                    |
+| [`plugins/handout/`](plugins/handout)                            | The Claude Code plugin: the same two skills (the setup skill as `/handout:setup`)                                    |
+| [`.github/workflows/release.yml`](.github/workflows/release.yml) | Publishes `cli/` to npm, with provenance, when a `skill-v<version>` tag is pushed                                    |
 
 `cli/handout.mjs` is a single, unminified file, so you can read exactly what runs. It is built in
 Handout's development repository, which is not public. The CLI talks to
